@@ -40,7 +40,8 @@ class BackgroundStar:
 
 
 class PlayerGameState:
-    def __init__(self, is_player1=True, render_width=None):
+    def __init__(self, is_player1=True, render_width=None, is_singleplayer=False):
+        self.is_singleplayer = is_singleplayer
         self.is_player1 = is_player1
         self.camera = Camera3D()
         self.camera.position = Vector3(0.0, 6.0, -6.0)
@@ -114,7 +115,7 @@ class PlayerGameState:
             possible_dirs = [DIR_RIGHT, DIR_DOWN, DIR_LEFT]
             
         next_dir = random.choice(possible_dirs)
-        is_battle = random.random() < 0.01 # 1% chance
+        is_battle = (not self.is_singleplayer) and (random.random() < 0.01) # 1% chance
         
         self.platforms.append(Platform3D(x, z, next_dir, is_battle=is_battle))
 
@@ -140,6 +141,8 @@ class PlayerGameState:
         else:
             self.screen_shake_x = 0
             self.screen_shake_y = 0
+
+        # screen shake ended
         
         # Combo display bounce decay
         if self.combo_display_scale > 1.0:
@@ -232,8 +235,11 @@ class PlayerGameState:
         
         elif not self.game_over:
             pressed_dir = get_p1_pressed_direction() if self.is_player1 else get_p2_pressed_direction()
-            
+            import pyray
+            if pyray.is_key_pressed(pyray.KEY_SPACE):
+                print("DEBUG: SPACE PRESSED in update_logic")
             if pressed_dir != -1:
+                print(f"DEBUG: Player {'1' if self.is_player1 else '2'} PRESSED dir {pressed_dir}")
                 if not self.game_started:
                     self.game_started = True
                     
@@ -505,6 +511,11 @@ class PlayerGameState:
                 
         end_texture_mode()
 
+    def trigger_screen_shake(self, duration_sec):
+        self.screen_shake_timer = duration_sec
+
+    def trigger_screen_flash(self, max_alpha):
+        self.screen_flash_alpha = max_alpha
 
 class GameplayScene:
     def __init__(self, game, singleplayer=False):
@@ -512,14 +523,14 @@ class GameplayScene:
         self.singleplayer = singleplayer
         
         if singleplayer:
-            self.p1_state = PlayerGameState(is_player1=True, render_width=SCREEN_WIDTH)
+            self.p1_state = PlayerGameState(is_player1=True, render_width=SCREEN_WIDTH, is_singleplayer=True)
             self.p2_state = None
         else:
-            self.p1_state = PlayerGameState(is_player1=True)
-            self.p2_state = PlayerGameState(is_player1=False)
+            self.p1_state = PlayerGameState(is_player1=True, is_singleplayer=False)
+            self.p2_state = PlayerGameState(is_player1=False, is_singleplayer=False)
 
     def update(self, dt):
-        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+        if not self.singleplayer and (self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle):
             self.p1_state.just_landed_on_battle = False
             self.p2_state.just_landed_on_battle = False
             from scenes.scene_battle import BattleScene
