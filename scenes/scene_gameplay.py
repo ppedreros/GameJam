@@ -109,11 +109,12 @@ class PlayerGameState:
 
     def generate_platform(self, last_plat):
         # Use first direction for positional offset
-        offset = get_direction_vector(last_plat.directions[0])
+        prev_dir = last_plat.directions[0] if getattr(last_plat, 'directions', ()) else DIR_UP
+        offset = get_direction_vector(prev_dir)
         x = last_plat.pos.x + offset.x
         z = last_plat.pos.z + offset.z
-        
-        last_primary = last_plat.directions[0]
+        # Try to continue from the last platform's primary direction, otherwise assume forward
+        last_primary = prev_dir
         possible_dirs = [DIR_UP, DIR_RIGHT, DIR_LEFT]
         if last_primary == DIR_UP:
             possible_dirs = [DIR_UP, DIR_RIGHT, DIR_LEFT]
@@ -129,6 +130,7 @@ class PlayerGameState:
         modifier = None
         is_inverted = False
         is_battle = False
+        is_jump_pad = False
         directions = (next_dir,)
         
         if not self.modifier_active:
@@ -137,16 +139,21 @@ class PlayerGameState:
             
             if not is_singleplayer:
                 # Multiplayer Probabilities
-                if self.player.score > 2 and roll < 0.04:
+                # Jump pads use an independent roll so battle_cooldown doesn't block them
+                jp_roll = random.random()
+                if jp_roll < 0.01:
+                    is_jump_pad = True
+                    directions = None
+                elif self.player.score > 2 and roll < 0.05:
                     modifier = "screen_swap"
                 elif self.player.score > 4 and self.battle_cooldown <= 0:
-                    if roll < 0.14:
+                    if roll < 0.10:  # reduced from 0.15
                         modifier = "minigame"
                         self.battle_cooldown = 10
-                    elif roll < 0.21:
+                    elif roll < 0.17:
                         modifier = "darkness"
                         self.battle_cooldown = 10
-                    elif roll < 0.27:
+                    elif roll < 0.23:
                         is_battle = True
                         self.battle_cooldown = 10
                 elif self.player.score > 5 and roll < 0.21:
@@ -156,24 +163,28 @@ class PlayerGameState:
                 elif self.player.score > 3 and roll < 0.30:
                     is_inverted = True
             else:
-                # Singleplayer Probabilities (No Swap, No Minigame, BUT includes Time Battle)
-                if self.player.score > 4 and self.battle_cooldown <= 0:
-                    if roll < 0.08:
+                # Singleplayer Probabilities (No Swap, No Minigame, BUT includes Time Battle and Jump Pads)
+                if roll < 0.01 and self.battle_cooldown <= 0:
+                    is_jump_pad = True
+                    directions = None
+                    self.battle_cooldown = 4
+                elif self.player.score > 4 and self.battle_cooldown <= 0:
+                    if roll < 0.28:  # Next 8%
                         modifier = "darkness"
-                        self.battle_cooldown = 8  # Shorter cooldown for singleplayer pace
-                    elif roll < 0.16:
+                        self.battle_cooldown = 8
+                    elif roll < 0.36:  # Next 8%
                         is_battle = True
                         self.battle_cooldown = 8
-                elif self.player.score > 5 and roll < 0.16:
+                elif self.player.score > 5 and roll < 0.45:
                     other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
                     second_dir = random.choice(other_dirs)
                     directions = tuple(sorted([next_dir, second_dir]))
-                elif self.player.score > 3 and roll < 0.28:
+                elif self.player.score > 3 and roll < 0.55:
                     is_inverted = True
             
-        new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle)
+        new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle, is_jump_pad=is_jump_pad)
         # Color based on score milestone — but special tiles override this above in Platform3D
-        if not is_battle:
+        if not is_battle and not is_jump_pad:
             palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
             new_plat.color = NEON_PALETTES[palette_idx]
             
@@ -234,7 +245,10 @@ class PlayerGameState:
             t = self.player.jump_progress
             # Stretch during rise, squash during fall
             self.player_squash = 1.0 + 0.4 * math.sin(t * math.pi)
-            self.player_spin = t * 360.0  # Full spin during jump
+            if getattr(self.player, 'is_big_jump', False):
+                self.player_spin = t * 1080.0  # Triple spin for big jump
+            else:
+                self.player_spin = t * 360.0  # Full spin during regular jump
         elif self.just_landed:
             self.player_squash = 0.6  # Squash on landing
             self.player_spin = 0.0
@@ -284,9 +298,14 @@ class PlayerGameState:
         current_plat = self.platforms[self.current_plat_index]
 
         if self.player.is_jumping:
-            self.player.jump_progress += dt / self.JUMP_DURATION
+            speed = 1.0 / self.JUMP_DURATION
+            if getattr(self.player, 'is_big_jump', False):
+                speed = 1.0 / (self.JUMP_DURATION * 2.5)  # Takes longer for big jump
+                
+            self.player.jump_progress += dt * speed
             if self.player.jump_progress >= 1.0:
                 self.player.is_jumping = False
+                self.player.is_big_jump = False
                 self.player.pos = self.player.jump_target_pos
                 if self.player.pos.y < 0:
                     self.game_over = True
@@ -314,6 +333,9 @@ class PlayerGameState:
                 pz = self.player.jump_start_pos.z + (self.player.jump_target_pos.z - self.player.jump_start_pos.z) * t
                 
                 arc_height = 2.0 if not self.game_over else 0.0
+                if getattr(self.player, 'is_big_jump', False):
+                    arc_height = 8.0  # Huge arc for big jump
+                    
                 py = self.player.jump_start_pos.y + (self.player.jump_target_pos.y - self.player.jump_start_pos.y) * t
                 py += math.sin(t * math.pi) * arc_height
                 
@@ -333,7 +355,12 @@ class PlayerGameState:
                 p_pressed = get_p2_pressed_direction()
             
             # Use pressed direction to detect activity, use directions to map all simultaneous 
-            if p_pressed != -1:
+            if getattr(current_plat, 'is_jump_pad', False) and not self.player.is_jumping and not self.game_over:
+                # Auto-jump from jump pad without input
+                self._execute_jump(platforms_to_skip=5)
+                self.particles.emit_landing_burst(self.player.pos.x, self.player.pos.y, self.player.pos.z, Color(0,255,100,255), count=25)
+                
+            elif p_pressed != -1:
                 if not self.game_started:
                     self.game_started = True
                     
@@ -341,45 +368,50 @@ class PlayerGameState:
                     # Ignore input while stunned
                     pass
                 else:
-                    req_dirs = current_plat.directions
-                    is_inverted = getattr(current_plat, 'is_inverted', False)
-                    is_multi = len(req_dirs) > 1
+                    req_dirs = getattr(current_plat, 'directions', ())
                     
-                    # For multi-arrow tiles use held keys (is_key_down) so the player
-                    # doesn't need to hit both keys on the exact same frame
-                    active_dirs = p_held if is_multi else p_directions
-                    
-                    if is_inverted:
-                        p_overlap = set(p_directions).intersection(set(req_dirs))
-                        if p_overlap:
-                            # Pressed a forbidden key
-                            self.stun_timer = 2.0
-                        else:
-                            # Successful jump on inverted tile
-                            self._execute_jump()
+                    if not req_dirs:
+                        # Defensive check in case of input on a tile with no dirs
+                        pass
                     else:
-                        # Standard logic
-                        if active_dirs == req_dirs:
-                            self._execute_jump()
-                        else: 
-                            # For multi-arrow tiles: no penalty while building up the combo
-                            if not is_multi and (p_pressed not in req_dirs or len(p_directions) != len(req_dirs)):
-                                self.player.is_jumping = True
-                                self.player.jump_start_pos = self.player.pos
-                                self.player.jump_progress = 0.0
-                                
-                                self.time_left -= 1.5
-                                if self.time_left <= 0:
-                                    self.time_left = 0
-                                    wrong_offset = get_direction_vector(p_pressed)
-                                    self.player.jump_target_pos = Vector3(
-                                        self.player.pos.x + wrong_offset.x, 
-                                        -10.0, 
-                                        self.player.pos.z + wrong_offset.z
-                                    )
-                                    self.game_over = True
-                                else:
-                                    self.player.jump_target_pos = self.player.pos
+                        is_inverted = getattr(current_plat, 'is_inverted', False)
+                        is_multi = len(req_dirs) > 1
+                        
+                        # For multi-arrow tiles use held keys (is_key_down) so the player
+                        # doesn't need to hit both keys on the exact same frame
+                        active_dirs = p_held if is_multi else p_directions
+                        
+                        if is_inverted:
+                            p_overlap = set(p_directions).intersection(set(req_dirs))
+                            if p_overlap:
+                                # Pressed a forbidden key
+                                self.stun_timer = 2.0
+                            else:
+                                # Successful jump on inverted tile
+                                self._execute_jump()
+                        else:
+                            # Standard logic
+                            if active_dirs == req_dirs:
+                                self._execute_jump()
+                            else: 
+                                # For multi-arrow tiles: no penalty while building up the combo
+                                if not is_multi and (p_pressed not in req_dirs or len(p_directions) != len(req_dirs)):
+                                    self.player.is_jumping = True
+                                    self.player.jump_start_pos = self.player.pos
+                                    self.player.jump_progress = 0.0
+                                    
+                                    self.time_left -= 1.5
+                                    if self.time_left <= 0:
+                                        self.time_left = 0
+                                        wrong_offset = get_direction_vector(p_pressed)
+                                        self.player.jump_target_pos = Vector3(
+                                            self.player.pos.x + wrong_offset.x, 
+                                            -10.0, 
+                                            self.player.pos.z + wrong_offset.z
+                                        )
+                                        self.game_over = True
+                                    else:
+                                        self.player.jump_target_pos = self.player.pos
 
         target_y = self.player.pos.y if (self.game_over and self.player.pos.y < 2.0) else 2.0
 
@@ -406,29 +438,32 @@ class PlayerGameState:
             self.camera.target.y += (target_look_y - self.camera.target.y) * 5.0 * dt
             self.camera.target.z = self.player.pos.z
 
-    def _execute_jump(self):
+    def _execute_jump(self, platforms_to_skip=1):
         self.player.is_jumping = True
         self.player.jump_start_pos = self.player.pos
         self.player.jump_progress = 0.0
         self.jump_was_advance = True  # mark as a real forward jump
         
-        self.current_plat_index += 1
+        # Ensure we have enough platforms to skip to
+        while len(self.platforms) - self.current_plat_index <= platforms_to_skip + 10:
+            self.generate_platform(self.platforms[-1])
+            
+        self.current_plat_index += platforms_to_skip
         next_plat = self.platforms[self.current_plat_index]
         self.player.jump_target_pos = Vector3(next_plat.pos.x, 2.0, next_plat.pos.z)
         
+        if platforms_to_skip > 1:
+            self.player.is_big_jump = True
+            
         # Check swap!
         if getattr(next_plat, 'is_swap', False):
             self.parent_scene.trigger_swap()
             next_plat.is_swap = False # clear it so they don't trigger it again if jumping in place
             
-        self.player.score += 1
+        self.player.score += platforms_to_skip
         
-        time_added = max(0.3, 1.0 - (self.player.score * 0.03))
+        time_added = max(0.3, 1.0 - (self.player.score * 0.03)) * platforms_to_skip
         self.time_left = min(self.MAX_TIME, self.time_left + time_added)
-        
-        if len(self.platforms) - self.current_plat_index < 10:
-            for _ in range(5):
-                self.generate_platform(self.platforms[-1])
 
     def draw_to_texture(self):
         begin_texture_mode(self.render_target)

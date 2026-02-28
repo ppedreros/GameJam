@@ -7,6 +7,9 @@ def get_direction_vector(direction):
 
 def draw_arrow(platform):
     dirs = platform.directions
+    if not dirs:
+        return
+        
     if len(dirs) == 1:
         _draw_single_arrow(platform.pos, dirs[0], 0, getattr(platform, 'is_inverted', False))
     else:
