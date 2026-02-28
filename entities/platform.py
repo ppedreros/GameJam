@@ -24,4 +24,4 @@ class Platform3D:
         if is_battle:
             self.color = Color(255, 215, 0, 255)   # gold
         if is_swap:
-            self.color = Color(255, 105, 180, 255)  # hot pink
+            self.color = Color(0, 121, 241, 255)  # Electric Blue

@@ -170,9 +170,12 @@ class PlayerGameState:
             elif self.player.score > 3 and roll < 0.30:
                 is_inverted = True
             
-        new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle)
-        # Color based on score milestone — but special tiles override this above in Platform3D
-        if not is_battle:
+        # If modifier is screen_swap, also set is_swap flag for visual/logic
+        is_swap_tile = (not self.parent_scene.singleplayer) and ((modifier == "screen_swap") or (not self.modifier_active and self.player.score > 2 and random.random() < 0.04))
+        
+        new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle, is_swap=is_swap_tile)
+        # Color based on score milestone — but special tiles override this
+        if not is_battle and not is_swap_tile:
             palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
             new_plat.color = NEON_PALETTES[palette_idx]
             
@@ -583,7 +586,7 @@ class PlayerGameState:
                         draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
             if i >= self.current_plat_index:
-                draw_arrow(plat)
+                draw_arrow(plat, pos if i > self.current_plat_index else None)
         
         
         # Player shadow blob on ground
@@ -656,14 +659,14 @@ class PlayerGameState:
             draw_cube_v(Vector3(curr_plat.pos.x, curr_plat.pos.y - 0.5, curr_plat.pos.z), glow_size, Color(100, 255, 100, int(80 + 60 * pulse)))
             draw_cube_v(curr_plat.pos, curr_plat.size, LIME)
             draw_cube_wires_v(curr_plat.pos, curr_plat.size, BLACK)
-            draw_arrow(curr_plat)
+            draw_arrow(curr_plat, curr_plat.pos)
             if self.current_plat_index + 1 < len(self.platforms):
                 next_plat = self.platforms[self.current_plat_index + 1]
                 bob = math.sin(t_now * 2.0) * 0.15
                 npos = Vector3(next_plat.pos.x, next_plat.pos.y + bob, next_plat.pos.z)
                 draw_cube_v(npos, next_plat.size, Color(80, 50, 150, 255))
                 draw_cube_wires_v(npos, next_plat.size, Color(200, 200, 255, 160))
-                draw_arrow(next_plat)
+                draw_arrow(next_plat, npos)
             sx = 1.0 / max(0.5, self.player_squash)
             sy = self.player_squash
             psize = Vector3(self.player.size.x * sx, self.player.size.y * sy, self.player.size.z * sx)
@@ -863,6 +866,9 @@ class GameplayScene:
             self.p2_state = PlayerGameState(self, is_player1=False)
 
     def trigger_swap(self):
+        if self.singleplayer or not self.p2_state:
+            return
+            
         self.show_swap_flash = 1.0
         
         # Swap identities
@@ -871,6 +877,9 @@ class GameplayScene:
         self.p1_state.player.color, self.p2_state.player.color = self.p2_state.player.color, self.p1_state.player.color
         # Swap scores
         self.p1_state.player.score, self.p2_state.player.score = self.p2_state.player.score, self.p1_state.player.score
+        # Swap combo stats
+        self.p1_state.best_combo, self.p2_state.best_combo = self.p2_state.best_combo, self.p1_state.best_combo
+        self.p1_state.last_combo_milestone, self.p2_state.last_combo_milestone = self.p2_state.last_combo_milestone, self.p1_state.last_combo_milestone
         # Swap time bars
         self.p1_state.time_left, self.p2_state.time_left = self.p2_state.time_left, self.p1_state.time_left
         # Swap stun status
@@ -906,44 +915,32 @@ class GameplayScene:
         
         if p1_mod or p2_mod:
             triggered = p1_mod or p2_mod
-            if triggered == "minigame" and not self.singleplayer:
-                # Trigger minigame switch
-                from scenes.scene_minigame import MinigameScene
-                minigame = MinigameScene(
-                    self.game, self, 
-                    self.p1_state.player.score, 
-                    self.p2_state.player.score
-                )
-                self.game.change_scene(minigame)
-                self.p1_state.triggered_modifier = None
+            
+            self.active_modifier = triggered
+            self.active_modifier_timer = 6.0
+            if triggered == "screen_swap":
+                # For path swap, we don't use 'modifier_target' anymore for side-sliding,
+                # but we keep the timer to gate generation
+                pass
+                
+            # Clear triggers
+            self.p1_state.triggered_modifier = None
+            if self.p2_state:
                 self.p2_state.triggered_modifier = None
-                return # Skip rest of update this frame
-            else:
-                triggered = p1_mod or p2_mod
-                self.active_modifier = triggered
-                self.active_modifier_timer = 6.0
-                if triggered == "screen_swap":
-                    self.modifier_target = 1.0
-                self.p1_state.triggered_modifier = None
-                if self.p2_state:
-                    self.p2_state.triggered_modifier = None
         
-        # --- Inverted-tile music detection ---
-        # Only fire when the player has landed (not mid-jump) to avoid mid-air triggers
-        def _is_grounded_on_inverted(state):
-            if state is None or state.game_over or state.player.is_jumping:
-                return False
-            plat = state.platforms[state.current_plat_index]
-            return getattr(plat, 'is_inverted', False)
+        # --- Path Swap music tracking ---
+        # The user wants music to be inverted when paths are switched (blue tiles)
+        # We determine if paths are switched by checking if P1 state is currently mapped to player 2 identity
+        # (In GameplayScene.__init__, p1_state.is_player1 is True)
+        paths_now_swapped = not self.p1_state.is_player1
         
-        any_inverted = _is_grounded_on_inverted(self.p1_state) or _is_grounded_on_inverted(self.p2_state)
-        if any_inverted and not self.music_is_inverted:
+        if paths_now_swapped and not self.music_is_inverted:
             self.music_is_inverted = True
             self.game.switch_music("inverted")
-        elif not any_inverted and self.music_is_inverted:
+        elif not paths_now_swapped and self.music_is_inverted:
             self.music_is_inverted = False
             self.game.switch_music("normal")
-        
+            
         # Sync darkness_timer to both states
         darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
         self.p1_state.darkness_timer = darkness_t
@@ -967,22 +964,35 @@ class GameplayScene:
         if p1_dead or p2_dead:
             from scenes.scene_gameover import GameOverScene
             
+            # Resolve identities: which state is currently Player 1 (WASD) and which is Player 2 (Arrows)?
+            if self.p1_state.is_player1:
+                p1_state_actual = self.p1_state
+                p2_state_actual = self.p2_state
+            else:
+                p1_state_actual = self.p2_state
+                p2_state_actual = self.p1_state
+            
+            p1_actual_dead = p1_state_actual.game_over and not p1_state_actual.player.is_jumping if p1_state_actual else False
+            p2_actual_dead = p2_state_actual.game_over and not p2_state_actual.player.is_jumping if p2_state_actual else False
+            
             winner = "Draw"
-            if p1_dead and not p2_dead:
+            if p1_actual_dead and not p2_actual_dead:
                 winner = "Player 2"
-            elif p2_dead and not p1_dead:
+            elif p2_actual_dead and not p1_actual_dead:
                 winner = "Player 1"
             
             # Win jingle + music reset
             self.game.play_win_effect()
             
-            p2_score = self.p2_state.player.score if self.p2_state else 0
-            p2_combo = self.p2_state.best_combo if self.p2_state else 0
+            p1_final_score = p1_state_actual.player.score if p1_state_actual else 0
+            p1_final_combo = p1_state_actual.best_combo if p1_state_actual else 0
+            p2_final_score = p2_state_actual.player.score if p2_state_actual else 0
+            p2_final_combo = p2_state_actual.best_combo if p2_state_actual else 0
                 
             self.game.change_scene(GameOverScene(
                 self.game, winner,
-                self.p1_state.player.score, p2_score,
-                p1_combo=self.p1_state.best_combo, p2_combo=p2_combo
+                p1_final_score, p2_final_score,
+                p1_combo=p1_final_combo, p2_combo=p2_final_combo
             ))
 
     def draw(self):
@@ -1004,12 +1014,8 @@ class GameplayScene:
             half_w = self.p1_state.render_width
             source_rec = Rectangle(0, self.p1_state.render_target.texture.height, self.p1_state.render_target.texture.width, -self.p1_state.render_target.texture.height)
             
-            t = self.modifier_transition
-            # Lerp x positions: p1 slides from 0→half_w, p2 slides from half_w→0
-            p1_x = t * half_w
-            p2_x = half_w + t * (-half_w)
-            p1_dest = Rectangle(p1_x, 0, half_w, SCREEN_HEIGHT)
-            p2_dest = Rectangle(p2_x, 0, half_w, SCREEN_HEIGHT)
+            p1_dest = Rectangle(0, 0, half_w, SCREEN_HEIGHT)
+            p2_dest = Rectangle(half_w, 0, half_w, SCREEN_HEIGHT)
                 
             draw_texture_pro(self.p1_state.render_target.texture, source_rec, p1_dest, Vector2(0, 0), 0.0, WHITE)
             draw_texture_pro(self.p2_state.render_target.texture, source_rec, p2_dest, Vector2(0, 0), 0.0, WHITE)

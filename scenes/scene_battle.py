@@ -142,7 +142,9 @@ class BattleScene:
         self.gameplay_scene.p1_state.time_left = max(-0.1, self.gameplay_scene.p1_state.time_left)
         self.gameplay_scene.p2_state.time_left = max(-0.1, self.gameplay_scene.p2_state.time_left)
             
-        # Switch back to normal
+        # Restore music based on whether paths are currently swapped
+        target_music = "inverted" if not self.gameplay_scene.p1_state.is_player1 else "normal"
+        self.game.switch_music(target_music)
         self.game.change_scene(self.gameplay_scene)
 
     def draw(self):

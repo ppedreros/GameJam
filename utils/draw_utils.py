@@ -5,17 +5,19 @@ def get_direction_vector(direction):
     # Only going forward now
     return Vector3(0, 0, 4.0)
 
-def draw_arrow(platform):
+def draw_arrow(platform, pos=None):
     dirs = platform.directions
+    draw_pos = pos if pos else platform.pos
     if len(dirs) == 1:
-        _draw_single_arrow(platform.pos, dirs[0], 0, getattr(platform, 'is_inverted', False))
+        _draw_single_arrow(draw_pos, dirs[0], 0, getattr(platform, 'is_inverted', False))
     else:
-        _draw_single_arrow(platform.pos, dirs[0], -0.6, getattr(platform, 'is_inverted', False))
-        _draw_single_arrow(platform.pos, dirs[1], 0.6, getattr(platform, 'is_inverted', False))
+        _draw_single_arrow(draw_pos, dirs[0], -0.6, getattr(platform, 'is_inverted', False))
+        _draw_single_arrow(draw_pos, dirs[1], 0.6, getattr(platform, 'is_inverted', False))
 
 def _draw_single_arrow(plat_pos, direction, offset_x, is_inverted=False):
     # Draw a clear, recognizable 3D pixel-art style arrow made of boxes
-    pos = Vector3(plat_pos.x + offset_x, plat_pos.y + 0.6, plat_pos.z)
+    # Lift slightly higher (0.75 instead of 0.6) to clear cylinder tops
+    pos = Vector3(plat_pos.x + offset_x, plat_pos.y + 0.75, plat_pos.z)
     
     shaft_color = RED if is_inverted else WHITE
     tip_color = WHITE if is_inverted else RED
