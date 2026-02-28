@@ -29,9 +29,10 @@ class PlayerGameState:
         self.current_plat_index = 0
         self.game_over = False
         self.game_started = False
-        self.MAX_TIME = 2.0
+        self.MAX_TIME = 10.0
         self.time_left = self.MAX_TIME
         self.JUMP_DURATION = 0.2
+        self.just_landed_on_battle = False
         
         # We render each player to a separate half-screen texture
         # SCREEN_WIDTH is 1200, so each gets 600x600
@@ -54,7 +55,9 @@ class PlayerGameState:
             possible_dirs = [DIR_RIGHT, DIR_DOWN, DIR_LEFT]
             
         next_dir = random.choice(possible_dirs)
-        self.platforms.append(Platform3D(x, z, next_dir))
+        is_battle = random.random() < 0.01 # 1% chance
+        
+        self.platforms.append(Platform3D(x, z, next_dir, is_battle=is_battle))
 
     def update_logic(self, dt):
         if self.game_over and not self.player.is_jumping:
@@ -77,6 +80,10 @@ class PlayerGameState:
                 self.player.pos = self.player.jump_target_pos
                 if self.player.pos.y < 0:
                     self.game_over = True
+                else:
+                    if self.platforms[self.current_plat_index].is_battle:
+                        self.platforms[self.current_plat_index].is_battle = False
+                        self.just_landed_on_battle = True
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -106,20 +113,25 @@ class PlayerGameState:
                     
                     self.player.score += 1
                     
-                    time_added = max(0.4, 1.5 - (self.player.score * 0.05))
+                    time_added = max(0.2, 1.0 - (self.player.score * 0.03))
                     self.time_left = min(self.MAX_TIME, self.time_left + time_added)
                     
                     if len(self.platforms) - self.current_plat_index < 10:
                         for _ in range(5):
                             self.generate_platform(self.platforms[-1])
                 else:
-                    wrong_offset = get_direction_vector(pressed_dir)
-                    self.player.jump_target_pos = Vector3(
-                        self.player.pos.x + wrong_offset.x, 
-                        -10.0, 
-                        self.player.pos.z + wrong_offset.z
-                    )
-                    self.game_over = True
+                    self.time_left -= 1.5
+                    if self.time_left <= 0:
+                        self.time_left = 0
+                        wrong_offset = get_direction_vector(pressed_dir)
+                        self.player.jump_target_pos = Vector3(
+                            self.player.pos.x + wrong_offset.x, 
+                            -10.0, 
+                            self.player.pos.z + wrong_offset.z
+                        )
+                        self.game_over = True
+                    else:
+                        self.player.jump_target_pos = self.player.pos
 
         target_cam_pos = Vector3(
             self.player.pos.x - 6.0 * (math.sin(self.time_left) * 0.1 if self.game_started and not self.game_over else 0),
@@ -154,7 +166,7 @@ class PlayerGameState:
             draw_cube_v(plat.pos, plat.size, color)
             draw_cube_wires_v(plat.pos, plat.size, BLACK)
             
-            if i >= self.current_plat_index:
+            if i >= self.current_plat_index and not plat.is_battle:
                 draw_arrow(plat)
 
         draw_cube_v(self.player.pos, self.player.size, self.player.color)
@@ -251,6 +263,13 @@ class GameplayScene:
         self.p2_state = PlayerGameState(is_player1=False)
 
     def update(self, dt):
+        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+            self.p1_state.just_landed_on_battle = False
+            self.p2_state.just_landed_on_battle = False
+            from scenes.scene_battle import BattleScene
+            self.game.change_scene(BattleScene(self.game, self))
+            return
+            
         self.p1_state.update_logic(dt)
         self.p2_state.update_logic(dt)
 
