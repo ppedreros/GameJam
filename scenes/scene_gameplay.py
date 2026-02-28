@@ -3,7 +3,7 @@ from raylibpy import *
 from entities.player import Player3D
 from entities.platform import Platform3D
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT, DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT
-from utils.draw_utils import draw_arrow, get_direction_vector
+from utils.draw_utils import draw_arrow, get_direction_vector, draw_rounded_panel, draw_rounded_panel_outline, draw_text_shadow
 from systems.input_handler import get_pressed_direction
 import random
 
@@ -154,48 +154,88 @@ class GameplayScene:
             draw_cube_wires_v(self.player.pos, self.player.size, MAROON)
 
         if not self.game_over:
-            panel_width = 220
-            panel_height = 80
+            
+            # --- Top HUD ---
+            # Score panel (Glassmorphism rounded rectangle)
+            panel_width = 180
+            panel_height = 90
             panel_x = 20
             panel_y = 20
             
-            draw_rectangle(panel_x+2, panel_y+2, panel_width, panel_height, Color(0,0,0,100))
-            draw_rectangle(panel_x, panel_y, panel_width, panel_height, fade(BLACK, 0.7))
+            # Draw sleek panel
+            draw_rounded_panel(panel_x, panel_y, panel_width, panel_height, fade(DARKBLUE, 0.4), shadow_offset=6, roundness=0.3)
+            # Inner highlight for glass effect
+            draw_rounded_panel_outline(panel_x, panel_y, panel_width, panel_height, fade(WHITE, 0.1), segments=10, thickness=2)
             
-            draw_text("SCORE", panel_x + 20, panel_y + 15, 20, LIGHTGRAY)
+            draw_text_shadow("SCORE", panel_x + 25, panel_y + 15, 20, LIGHTGRAY)
             
+            # Score text with subtle pulsating logic if we wanted (currently static gold)
             score_text = str(self.player.score)
-            draw_text(score_text, panel_x + 20, panel_y + 40, 30, WHITE)
             
+            # Subtle pop effect when score increases
+            scale_pop = 1.0 + max(0, 0.5 - (self.MAX_TIME - self.time_left)) if self.game_started else 1.0 # Quick cheap pop!
+            font_size = int(40 * scale_pop)
+            
+            draw_text_shadow(score_text, panel_x + 25, panel_y + 40, font_size, GOLD)
+            
+            # --- Timer Bar ---
             if self.game_started:
-                bar_bg_rect = Rectangle(SCREEN_WIDTH//2 - 200, 30, 400, 24)
+                bar_w = 400
+                bar_h = 24
+                bar_x = SCREEN_WIDTH//2 - bar_w//2
+                bar_y = 30
                 
-                draw_rectangle(int(bar_bg_rect.x+2), int(bar_bg_rect.y+2), int(bar_bg_rect.width), int(bar_bg_rect.height), Color(0,0,0,100))
-                draw_rectangle(int(bar_bg_rect.x), int(bar_bg_rect.y), int(bar_bg_rect.width), int(bar_bg_rect.height), fade(DARKGRAY, 0.8))
+                # Draw sleek bar background
+                draw_rounded_panel(bar_x, bar_y, bar_w, bar_h, fade(BLACK, 0.6), shadow_offset=4, roundness=0.5)
+                # Inner bezel
+                draw_rounded_panel_outline(bar_x, bar_y, bar_w, bar_h, fade(WHITE, 0.1), segments=10, thickness=2)
                 
+                # Calculate fill
                 fill_ratio = max(0.0, self.time_left / self.MAX_TIME)
-                bar_fill_rect = Rectangle(bar_bg_rect.x + 2, bar_bg_rect.y + 2, (bar_bg_rect.width - 4) * fill_ratio, bar_bg_rect.height - 4)
                 
-                bar_color = GREEN
-                if self.time_left < 1.0: bar_color = ORANGE
-                if self.time_left < 0.5: bar_color = RED
+                # Color interpolation
+                # Green to Red
+                r = int(255 * (1 - fill_ratio))
+                g = int(255 * fill_ratio)
+                b = 50 # Add a tiny bit of blue for a nicer tone
+                bar_color = Color(r, g, b, 255)
                 
+                # Pulse if low time
+                if self.time_left < 0.5:
+                    pulse_amt = (math.sin(get_time() * 20.0) + 1.0) / 2.0
+                    bar_color = color_alpha(bar_color, 0.5 + 0.5 * pulse_amt)
+                
+                # Draw filled portion
                 if fill_ratio > 0:
-                    draw_rectangle(int(bar_fill_rect.x), int(bar_fill_rect.y), int(bar_fill_rect.width), int(bar_fill_rect.height), bar_color)
+                    fill_rect = Rectangle(bar_x + 3, bar_y + 3, (bar_w - 6) * fill_ratio, bar_h - 6)
+                    draw_rectangle_rounded(fill_rect, 0.5, 10, bar_color)
+                    # Add a bright glow line on top of the fill for 3D bar effect
+                    glow_rect = Rectangle(bar_x + 6, bar_y + 5, ((bar_w - 6) * fill_ratio) - 6, (bar_h - 6) // 3)
+                    if glow_rect.width > 0:
+                         draw_rectangle_rounded(glow_rect, 0.5, 10, fade(WHITE, 0.3))
                 
                 time_text = f"{self.time_left:.1f}s"
                 time_text_len = measure_text(time_text, 18)
-                draw_text(time_text, int(bar_bg_rect.x + bar_bg_rect.width/2 - time_text_len/2), int(bar_bg_rect.y + 3), 18, WHITE)
+                draw_text_shadow(time_text, int(bar_x + bar_w/2 - time_text_len/2), int(bar_y + 3), 18, RAYWHITE)
                 
             else:
                 prompt = "Press UP arrow to start!"
                 prompt_w = measure_text(prompt, 30)
                 
-                draw_rectangle(SCREEN_WIDTH//2 - prompt_w//2 - 20, SCREEN_HEIGHT//2 - 120, prompt_w + 40, 60, fade(BLACK, 0.6))
-                draw_text(prompt, SCREEN_WIDTH//2 - prompt_w//2, SCREEN_HEIGHT//2 - 105, 30, YELLOW)
+                # Bobbing animation
+                bob = math.sin(get_time() * 3.0) * 5.0
+                prompt_y = int(SCREEN_HEIGHT//2 - 120 + bob)
                 
-            hint = "Match the white 3D ARROWS using your keyboard!"
+                # Pulse glow
+                pulse = (math.sin(get_time() * 5.0) + 1.0) / 2.0
+                
+                draw_rounded_panel(SCREEN_WIDTH//2 - prompt_w//2 - 30, prompt_y - 15, prompt_w + 60, 60, fade(BLACK, 0.6), shadow_offset=6, roundness=0.5)
+                draw_rounded_panel_outline(SCREEN_WIDTH//2 - prompt_w//2 - 30, prompt_y - 15, prompt_w + 60, 60, fade(YELLOW, 0.3 + 0.5 * pulse), segments=10, thickness=2)
+                
+                draw_text_shadow(prompt, SCREEN_WIDTH//2 - prompt_w//2, prompt_y, 30, YELLOW)
+                
+            hint = "Match the white 3D ARROWS before time runs out!"
             hint_w = measure_text(hint, 20)
             
-            draw_rectangle(SCREEN_WIDTH//2 - hint_w//2 - 20, SCREEN_HEIGHT - 60, hint_w + 40, 40, fade(BLACK, 0.5))
-            draw_text(hint, SCREEN_WIDTH//2 - hint_w//2, SCREEN_HEIGHT - 50, 20, RAYWHITE)
+            draw_rounded_panel(SCREEN_WIDTH//2 - hint_w//2 - 30, SCREEN_HEIGHT - 60, hint_w + 60, 40, fade(BLACK, 0.5), shadow_offset=2, roundness=0.5)
+            draw_text_shadow(hint, SCREEN_WIDTH//2 - hint_w//2, SCREEN_HEIGHT - 50, 20, RAYWHITE)

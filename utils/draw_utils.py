@@ -48,3 +48,34 @@ def draw_arrow(platform):
         draw_cube(Vector3(left.x + 0.2, left.y, left.z - 0.2), 0.1, 0.2, 0.4, color)
         draw_cube(Vector3(left.x + 0.2, left.y, left.z + 0.2), 0.1, 0.2, 0.4, color)
         draw_cube(left, 0.3, 0.2, 0.3, RED)
+
+def draw_rounded_panel(x, y, width, height, bg_color, shadow_color=Color(0,0,0,100), shadow_offset=4, roundness=0.2, segments=10):
+    """Draws a rounded rectangle with a soft drop shadow effect."""
+    # Draw soft shadow using multiple passes
+    if shadow_offset > 0:
+        for i in range(3):
+            alpha = int(shadow_color.a * (0.3 - i*0.1))
+            shadow_step = Color(shadow_color.r, shadow_color.g, shadow_color.b, max(0, alpha))
+            draw_rectangle_rounded(Rectangle(x + shadow_offset + i, y + shadow_offset + i, width, height), roundness, segments, shadow_step)
+            
+    # Draw main panel
+    draw_rectangle_rounded(Rectangle(x, y, width, height), roundness, segments, bg_color)
+    
+def draw_rounded_panel_outline(x, y, width, height, color, roundness=0.2, segments=10, thickness=2):
+    """Workaround for draw_rectangle_rounded_lines bug in raylibpy."""
+    # Draw slightly larger outer rounded rect
+    draw_rectangle_rounded(Rectangle(x, y, width, height), roundness, segments, color)
+    # Draw slightly smaller inner rounded rect as "erase" using the parent background color
+    # Wait, we can't erase if there is a complex background. 
+    # Let's just draw 4 thin rectangles along the edges for a pseudo-outline instead of True rounded lines
+    # It won't have rounded corners but it's safe.
+    draw_rectangle(int(x), int(y), int(width), thickness, color) # Top
+    draw_rectangle(int(x), int(y + height - thickness), int(width), thickness, color) # Bottom
+    draw_rectangle(int(x), int(y), thickness, int(height), color) # Left
+    draw_rectangle(int(x + width - thickness), int(y), thickness, int(height), color) # Right
+    
+def draw_text_shadow(text, x, y, font_size, color, shadow_color=Color(0,0,0,150), shadow_offset=2):
+    """Draws text with a drop shadow for better legibility."""
+    draw_text(text, x + shadow_offset, y + shadow_offset, font_size, shadow_color)
+    draw_text(text, x, y, font_size, color)
+
