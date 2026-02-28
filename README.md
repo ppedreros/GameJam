@@ -1,9 +1,13 @@
 <div align="center">
   <img width="769" height="150" alt="image" src="https://github.com/user-attachments/assets/366e6681-ea70-4340-91b8-68985275f282" />
 </div>
+<div align="center">
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![Raylib](https://img.shields.io/badge/raylib-5.5-lightgrey.svg)](https://www.raylib.com/)
+
+</div>
+
 
 **Combo Crush** is a fast-paced, 3D competitive rhythm/reaction jumping game built with Python and Raylib (`pyray`).
 
@@ -38,7 +42,7 @@ Jump rapidly along an infinite neon highway by matching your keyboard inputs to 
 
 Want to play immediately? You don't need Python or any special software.
 
-1. **Download the Game**: Download the `ComboCrush.zip` file from the latest Release.
+1. **Download the Game**: Download the [`ComboCrush.zip`](https://github.com/ppedreros/GameJam/blob/main/ComboCrush.zip) file from the latest Release.
 2. **Extract**: Right-click the `.zip` and select **"Extract All..."**.
 3. **Play**: Open the folder and double-click **`ComboCrush.exe`** (the blue icon) to launch the game!
 
