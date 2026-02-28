@@ -129,10 +129,12 @@ class BattleScene:
                 if self.p1_score >= self.winning_score:
                     self.winner = 1
                     self.state = "FINISHED"
+                    self.game.switch_music("normal")
                     self.state_timer = 1.0
                 elif self.p2_score >= self.winning_score:
                     self.winner = 2
                     self.state = "FINISHED"
+                    self.game.switch_music("normal")
                     self.state_timer = 1.0
                 else:
                     self.state = "WAITING_ARROW"
@@ -164,6 +166,7 @@ class BattleScene:
             gs.p1_state.player.score = max(0, gs.p1_state.player.score - 1)
             
             
+        # Switch back to normal
         self.game.change_scene(self.gameplay_scene)
 
     def draw(self):
