@@ -1,4 +1,4 @@
-from pyray import is_key_pressed, KEY_UP, KEY_W, KEY_RIGHT, KEY_D, KEY_DOWN, KEY_S, KEY_LEFT, KEY_A
+from pyray import is_key_pressed, is_key_down, KEY_UP, KEY_W, KEY_RIGHT, KEY_D, KEY_DOWN, KEY_S, KEY_LEFT, KEY_A
 from utils.constants import DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT
 
 def get_p1_pressed_direction():
@@ -14,3 +14,37 @@ def get_p2_pressed_direction():
     if is_key_pressed(KEY_DOWN): return DIR_DOWN
     if is_key_pressed(KEY_LEFT): return DIR_LEFT
     return -1
+
+def get_p1_pressed_directions():
+    dirs = []
+    if is_key_pressed(KEY_W): dirs.append(DIR_UP)
+    if is_key_pressed(KEY_D): dirs.append(DIR_RIGHT)
+    if is_key_pressed(KEY_S): dirs.append(DIR_DOWN)
+    if is_key_pressed(KEY_A): dirs.append(DIR_LEFT)
+    return tuple(sorted(dirs))
+
+def get_p2_pressed_directions():
+    dirs = []
+    if is_key_pressed(KEY_UP): dirs.append(DIR_UP)
+    if is_key_pressed(KEY_RIGHT): dirs.append(DIR_RIGHT)
+    if is_key_pressed(KEY_DOWN): dirs.append(DIR_DOWN)
+    if is_key_pressed(KEY_LEFT): dirs.append(DIR_LEFT)
+    return tuple(sorted(dirs))
+
+def get_p1_held_directions():
+    """Teclas actualmente sostenidas (is_key_down) — ventana más amplia para combos."""
+    dirs = []
+    if is_key_down(KEY_W): dirs.append(DIR_UP)
+    if is_key_down(KEY_D): dirs.append(DIR_RIGHT)
+    if is_key_down(KEY_S): dirs.append(DIR_DOWN)
+    if is_key_down(KEY_A): dirs.append(DIR_LEFT)
+    return tuple(sorted(dirs))
+
+def get_p2_held_directions():
+    """Teclas actualmente sostenidas (is_key_down) — ventana más amplia para combos."""
+    dirs = []
+    if is_key_down(KEY_UP): dirs.append(DIR_UP)
+    if is_key_down(KEY_RIGHT): dirs.append(DIR_RIGHT)
+    if is_key_down(KEY_DOWN): dirs.append(DIR_DOWN)
+    if is_key_down(KEY_LEFT): dirs.append(DIR_LEFT)
+    return tuple(sorted(dirs))
