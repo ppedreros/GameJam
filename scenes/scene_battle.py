@@ -14,6 +14,9 @@ class BattleScene:
         self.p2_score = 0
         self.winning_score = 3
         
+        self.singleplayer = getattr(gameplay_scene, 'singleplayer', True)
+        self.reaction_timer = 0.0
+        
         self.state = "GET_READY"
         self.state_timer = 1.0
         
@@ -56,6 +59,11 @@ class BattleScene:
             if self.arrow_timer <= 0:
                 self.state = "SHOWING_ARROW"
                 
+                # In singleplayer, time to react decreases as game speeds up
+                if self.singleplayer:
+                    speed_factor = self.gameplay_scene.p1_state.player.score * 0.02
+                    self.reaction_timer = max(1.2, 2.5 - speed_factor)
+                
                 # 30% chance for a double arrow combo!
                 if random.random() < 0.3:
                     dirs = [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT]
@@ -67,40 +75,53 @@ class BattleScene:
         elif self.state == "SHOWING_ARROW":
             is_multi = len(self.current_arrows) > 1
             
-            if is_multi:
-                # Use held keys for double-arrow combos: no need to hit both on exact same frame
-                p1_dirs = get_p1_held_directions()
-                p2_dirs = get_p2_held_directions()
-            else:
-                p1_dirs = get_p1_pressed_directions()
-                p2_dirs = get_p2_pressed_directions()
+            p1_dirs = get_p1_held_directions() if is_multi else get_p1_pressed_directions()
             
-            p1_win = False
-            p2_win = False
-            
-            # If they pressed something, was it exactly the combo needed?
-            if p1_dirs:
-                if p1_dirs == self.current_arrows:
-                    p1_win = True
-            
-            if p2_dirs:
-                if p2_dirs == self.current_arrows:
-                    p2_win = True
-                elif p1_win:
-                    # both pressed, handled below
-                    pass
+            if self.singleplayer:
+                self.reaction_timer -= dt
+                p1_win = False
+                p1_fail = False
                 
-            # If both press same frame, player 1 wins arbitrarily
-            if p1_win:
-                self.p1_score += 1
-                self.point_msg = "P1 +1!"
-                self.point_msg_color = BLUE
-                self.handle_point_scored()
-            elif p2_win:
-                self.p2_score += 1
-                self.point_msg = "P2 +1!"
-                self.point_msg_color = RED
-                self.handle_point_scored()
+                if p1_dirs:
+                    if p1_dirs == self.current_arrows:
+                        p1_win = True
+                    else:
+                        p1_fail = True
+                        
+                if p1_win:
+                    self.p1_score += 1
+                    self.point_msg = "NICE!"
+                    self.point_msg_color = LIME
+                    self.handle_point_scored()
+                elif self.reaction_timer <= 0 or p1_fail:
+                    self.p2_score += 1
+                    self.point_msg = "TOO SLOW!" if not p1_fail else "MISS!"
+                    self.point_msg_color = RED
+                    self.handle_point_scored()
+            
+            else:
+                p2_dirs = get_p2_held_directions() if is_multi else get_p2_pressed_directions()
+                
+                p1_win = False
+                p2_win = False
+                
+                if p1_dirs and p1_dirs == self.current_arrows:
+                    p1_win = True
+                
+                if p2_dirs:
+                    if p2_dirs == self.current_arrows:
+                        p2_win = True
+                    
+                if p1_win:
+                    self.p1_score += 1
+                    self.point_msg = "P1 +1!"
+                    self.point_msg_color = BLUE
+                    self.handle_point_scored()
+                elif p2_win:
+                    self.p2_score += 1
+                    self.point_msg = "P2 +1!"
+                    self.point_msg_color = RED
+                    self.handle_point_scored()
                 
         elif self.state == "POINT_SCORED":
             self.point_msg_timer -= dt
@@ -130,17 +151,20 @@ class BattleScene:
         self.current_arrows = ()
         
     def apply_rewards_and_exit(self):
-        # Winner +2.0s, loser -2.0s
+        gs = self.gameplay_scene
         if self.winner == 1:
-            self.gameplay_scene.p1_state.time_left = min(self.gameplay_scene.p1_state.MAX_TIME, self.gameplay_scene.p1_state.time_left + 1.5)
-            self.gameplay_scene.p2_state.time_left -= 2.0
-        else:
-            self.gameplay_scene.p2_state.time_left = min(self.gameplay_scene.p2_state.MAX_TIME, self.gameplay_scene.p2_state.time_left + 1.5)
-            self.gameplay_scene.p1_state.time_left -= 2.0
+            # P1 wins
+            gs.p1_state.player.crowns += 1
+            gs.p1_state.time_left = min(gs.p1_state.MAX_TIME, gs.p1_state.time_left + 2.0)
+            if gs.p2_state:
+                gs.p2_state.player.score = max(0, gs.p2_state.player.score - 1)
+        elif self.winner == 2:
+            # P2 wins (multiplayer only)
+            if gs.p2_state:
+                gs.p2_state.player.crowns += 1
+                gs.p2_state.time_left = min(gs.p2_state.MAX_TIME, gs.p2_state.time_left + 2.0)
+            gs.p1_state.player.score = max(0, gs.p1_state.player.score - 1)
             
-        # Ensure times don't go negative or trigger game over improperly right away
-        self.gameplay_scene.p1_state.time_left = max(-0.1, self.gameplay_scene.p1_state.time_left)
-        self.gameplay_scene.p2_state.time_left = max(-0.1, self.gameplay_scene.p2_state.time_left)
             
         # Switch back to normal
         self.game.change_scene(self.gameplay_scene)
@@ -165,10 +189,12 @@ class BattleScene:
         score_txt = f"{self.p1_score}  /  {self.winning_score}"
         draw_text_shadow(score_txt, 145, 135, 44, GOLD, shadow_offset=3)
         
-        # P2 card
+        # P2 / Time card
         draw_rounded_panel(SCREEN_WIDTH - 310, 90, 230, 110, Color(120, 10, 10, 240), shadow_offset=8, roundness=0.2)
         draw_rounded_panel_outline(SCREEN_WIDTH - 310, 90, 230, 110, Color(255, 80, 80, 255), segments=12, thickness=4)
-        draw_text_shadow("P2  ARROWS", SCREEN_WIDTH - 290, 102, 22, Color(255, 120, 120, 255), shadow_offset=3)
+        
+        p2_title = "TIME LIMIT" if self.singleplayer else "P2  ARROWS"
+        draw_text_shadow(p2_title, SCREEN_WIDTH - 290, 102, 22, Color(255, 120, 120, 255), shadow_offset=3)
         score_txt2 = f"{self.p2_score}  /  {self.winning_score}"
         draw_text_shadow(score_txt2, SCREEN_WIDTH - 270, 135, 44, GOLD, shadow_offset=3)
         
@@ -213,6 +239,17 @@ class BattleScene:
                      ax - measure_text(arrow_str, font_size)//2,
                      center_y - font_size//2,
                      font_size, WHITE, shadow_color=Color(arrow_col[0]//2, arrow_col[1]//2, arrow_col[2]//2, 220), shadow_offset=5)
+                 
+             if self.singleplayer:
+                 # Draw shrinking timer bar below arrows
+                 max_t = max(1.2, 2.5 - (self.gameplay_scene.p1_state.player.score * 0.02))
+                 bar_w = 400
+                 fill_w = int(bar_w * (self.reaction_timer / max_t))
+                 bar_x = center_x - bar_w // 2
+                 bar_y = center_y + 180
+                 draw_rectangle(bar_x, bar_y, bar_w, 20, fade(DARKGRAY, 0.8))
+                 draw_rectangle(bar_x, bar_y, fill_w, 20, LIME if self.reaction_timer > max_t*0.4 else RED)
+                 draw_rectangle_lines(bar_x, bar_y, bar_w, 20, WHITE)
              
         elif self.state == "POINT_SCORED":
              scale = 1.0 + (0.5 - self.point_msg_timer) * 2.0
@@ -220,8 +257,8 @@ class BattleScene:
              draw_text_shadow(self.point_msg, center_x - measure_text(self.point_msg, font_size)//2, center_y - font_size//2, font_size, self.point_msg_color)
              
         elif self.state == "FINISHED":
-             win_str = f"PLAYER {self.winner} WINS THE BATTLE!"
+             win_str = f"PLAYER {self.winner} WINS THE BATTLE!" if not self.singleplayer else ("YOU SURVIVED!" if self.winner == 1 else "TIME WINS!")
              draw_text_shadow(win_str, center_x - measure_text(win_str, 60)//2, center_y - 60, 60, GOLD)
              
-             sub_str = "Steals 2 seconds!"
+             sub_str = "Steals 2 seconds!" if not self.singleplayer else ("+1.5 seconds!" if self.winner == 1 else "-2.0 seconds!")
              draw_text_shadow(sub_str, center_x - measure_text(sub_str, 40)//2, center_y + 20, 40, ORANGE)
