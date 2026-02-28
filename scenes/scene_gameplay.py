@@ -139,7 +139,7 @@ class PlayerGameState:
                 if roll < 0.12:
                     modifier = "darkness"
                     self.battle_cooldown = 10
-                elif roll < 0.22:
+                elif roll < 0.18:
                     is_battle = True
                     self.battle_cooldown = 10
             elif self.player.score > 5 and roll < 0.21:
