@@ -5,25 +5,24 @@
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![Raylib](https://img.shields.io/badge/raylib-5.5-lightgrey.svg)](https://www.raylib.com/)
 
-**Combo Crush** is a fast-paced, 3D competitive rhythm/reaction jumping game built with Python and Raylib (`pyray`). 
+**Combo Crush** is a fast-paced, 3D competitive rhythm/reaction jumping game built with Python and Raylib (`pyray`).
 
 Jump rapidly along an infinite neon highway by matching your keyboard inputs to the arrows on incoming platforms. Survive as long as you can in Solo Mode, or face off against a friend in a chaotic Local Split-Screen Multiplayer match to see who has the fastest reflexes!
 
-
 ## 🌟 Features
 
-*   **⚡ High-Speed Reflex Gameplay:** Read the upcoming platform arrows and press the corresponding directions to jump seamlessly without breaking a sweat.
-*   **🔥 INSANE Combo System:** Chain jumps without mistakes to build up your combo! Triggers dynamic neon visuals, screen shakes, and custom voice/sound effects at major milestones (x5, x10, x15, x20, x30).
-*   **👥 Local Multiplayer (Split-Screen):** Race against a friend. The longer you survive, the harder it gets. Sabotage each other by triggering traps!
-*   **☠️ Dynamic Traps & Modifiers:** 
-    *   **Inverted Controls:** Purple platforms reverse your input required.
-    *   **Darkness:** Plunges the screen into a small spotlight mode.
-    *   **Screen Swap (2P):** Suddenly swaps your screen, identity, and controls with your opponent mid-game!
-    *   **Forks & Active Traps:** Choose alternate paths. Touching a trap triggers a "DODGE!" quick-time event for your opponent—fail it, and suffer Time Drain, Freeze (Stun), or Darkness.
-*   **🎯 Minigames & Battles:** Break up the jumping action with sudden minigames! 
-    *   **Mashing Minigame:** Mash the button as fast as you can to fill your neon glass with liquid (features spring-physics sloshing!).
-    *   **Arrow Battles:** A quick reaction duel. First to press the correct sequence of arrows wins!
-*   **👑 Global Scoring (Crown System):** It's not just about distance. Winning minigames or battles earns you **Bonus Points** and **Crowns**. The final "Game Over" screen calculates the absolute winner weighing all factors.
+* **⚡ High-Speed Reflex Gameplay:** Read the upcoming platform arrows and press the corresponding directions to jump seamlessly without breaking a sweat.
+* **🔥 INSANE Combo System:** Chain jumps without mistakes to build up your combo! Triggers dynamic neon visuals, screen shakes, and custom voice/sound effects at major milestones (x5, x10, x15, x20, x30).
+* **👥 Local Multiplayer (Split-Screen):** Race against a friend. The longer you survive, the harder it gets. Sabotage each other by triggering traps!
+* **☠️ Dynamic Traps & Modifiers:**
+  * **Inverted Controls:** Purple platforms reverse your input required.
+  * **Darkness:** Plunges the screen into a small spotlight mode.
+  * **Screen Swap (2P):** Suddenly swaps your screen, identity, and controls with your opponent mid-game!
+  * **Forks & Active Traps:** Choose alternate paths. Touching a trap triggers a "DODGE!" quick-time event for your opponent—fail it, and suffer Time Drain, Freeze (Stun), or Darkness.
+* **🎯 Minigames & Battles:** Break up the jumping action with sudden minigames!
+  * **Mashing Minigame:** Mash the button as fast as you can to fill your neon glass with liquid (features spring-physics sloshing!).
+  * **Arrow Battles:** A quick reaction duel. First to press the correct sequence of arrows wins!
+* **👑 Global Scoring (Crown System):** It's not just about distance. Winning minigames or battles earns you **Bonus Points** and **Crowns**. The final "Game Over" screen calculates the absolute winner weighing all factors.
 
 ## 🕹️ Controls
 
@@ -35,51 +34,58 @@ Jump rapidly along an infinite neon highway by matching your keyboard inputs to 
 | **Jump Back** | `S` | `Down Arrow` |
 | **Minigame Mash** | `W` (or `Space` in Solo) | `Up Arrow` |
 
-## 🛠️ Installation (Running from source)
+## 🚀 How to Play (No Installation Required!)
 
-If you have Python installed and want to run the code directly:
+Want to play immediately? You don't need Python or any special software.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/ComboCrush.git
-    cd ComboCrush
-    ```
+1. **Download the Game**: Download the `ComboCrush.zip` file from the latest Release.
+2. **Extract**: Right-click the `.zip` and select **"Extract All..."**.
+3. **Play**: Open the folder and double-click **`ComboCrush.exe`** (the blue icon) to launch the game!
 
-2.  **Install dependencies:**
-    The project uses `raylib-python-cffi`. It's highly recommended to use `uv` or a virtual environment:
-    ```bash
-    pip install raylib
-    # Make sure to install any other required packages if needed (e.g. pyray)
-    ```
+*(Note: Windows might show a "Windows protected your PC" popup because this is an Indie game. Just click "More info" and then "Run anyway").*
 
-3.  **Run the game:**
-    ```bash
-    python main.py
-    ```
+---
 
-## 📦 Building a Standalone Executable (.exe)
+## 🛠️ Developer Setup (Running from source)
 
-Want to share the game with friends who don't have Python? You can build a portable Windows `.exe` using PyInstaller.
+If you're a developer and want to run the raw Python code or build it yourself:
 
-1.  **Install PyInstaller:**
-    ```bash
-    pip install pyinstaller
-    ```
+1. **Clone the repository:**
 
-2.  **Compile the game:**
-    Run the following command in the project root to package the game and its assets (`images`, `sounds`) into a standalone folder:
-    ```bash
-    pyinstaller --noconfirm --onedir --windowed --add-data "assets;assets" --name "ComboCrush" main.py
-    ```
+   ```bash
+   git clone https://github.com/your-username/ComboCrush.git
+   cd ComboCrush
+   ```
 
-3.  **Find your game:**
-    Navigate to the newly created `dist/ComboCrush/` folder. Execute `ComboCrush.exe` to play! You can zip this whole folder to easily distribute the game.
+2. **Install dependencies:**
+
+   The project uses `raylib-python-cffi`. It's highly recommended to use `uv` or a virtual environment:
+
+   ```bash
+   pip install raylib
+   ```
+
+3. **Run the game:**
+
+   ```bash
+   python main.py
+   ```
+
+### 📦 Building the Executable
+
+To generate your own `.exe` using PyInstaller:
+
+```bash
+pip install pyinstaller
+pyinstaller --noconfirm --onedir --windowed --add-data "assets;assets" --name "ComboCrush" main.py
+```
+You will find the executable inside the `dist/ComboCrush/` directory.
 
 ## 🎵 Assets & Credits
 
-*   **Engine:** Powered by [Raylib](https://www.raylib.com/) via `pyray`.
-*   **Graphics:** Procedural 3D primitive rendering with neon/bloom-like composite shaders and particle systems.
-*   **Audio:** SFX and music are loaded dynamically from the `assets/sounds` directory (ensure all `.mp3` and `.wav` files are present).
+* **Engine:** Powered by [Raylib](https://www.raylib.com/) via `pyray`.
+* **Graphics:** Procedural 3D primitive rendering with neon/bloom-like composite shaders and particle systems.
+* **Audio:** SFX and music are loaded dynamically from the `assets/sounds` directory (ensure all `.mp3` and `.wav` files are present).
 
 ## 📄 License
 
