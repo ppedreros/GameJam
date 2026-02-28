@@ -1,6 +1,6 @@
 import sys
 import os
-from raylibpy import *
+from pyray import *
 from game import Game
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 

@@ -1,4 +1,4 @@
-from raylibpy import *
+from pyray import *
 from .constants import DIR_UP, DIR_DOWN, DIR_RIGHT, DIR_LEFT
 
 def get_direction_vector(direction):

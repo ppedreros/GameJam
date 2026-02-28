@@ -1,4 +1,4 @@
-from raylibpy import Vector3, DARKGREEN, Color
+from pyray import Vector3, DARKGREEN, Color
 
 class Platform3D:
     def __init__(self, x, z, direction):
