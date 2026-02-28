@@ -1,8 +1,8 @@
-from scenes.scene_gameplay import GameplayScene
+from scenes.scene_menu import MenuScene
 
 class Game:
     def __init__(self):
-        self.current_scene = GameplayScene(self)
+        self.current_scene = MenuScene(self)
         
     def change_scene(self, scene):
         self.current_scene = scene
