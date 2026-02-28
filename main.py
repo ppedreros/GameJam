@@ -5,7 +5,7 @@ from game import Game
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 def main():
-    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "Cubes!")
+    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "Combo Crush")
     set_target_fps(60)
     set_exit_key(0) # Disable ESC to close window
 
