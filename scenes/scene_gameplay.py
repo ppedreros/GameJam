@@ -136,13 +136,13 @@ class PlayerGameState:
             if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
             elif self.player.score > 4 and self.battle_cooldown <= 0:
-                if not getattr(self.parent_scene, 'singleplayer', True) and roll < 0.05:
+                if not getattr(self.parent_scene, 'singleplayer', True) and roll < 0.10:
                     modifier = "minigame"
                     self.battle_cooldown = 10
-                elif roll < 0.12:
+                elif roll < 0.17:
                     modifier = "darkness"
                     self.battle_cooldown = 10
-                elif roll < 0.18:
+                elif roll < 0.23:
                     is_battle = True
                     self.battle_cooldown = 10
             elif self.player.score > 5 and roll < 0.21:
