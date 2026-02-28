@@ -136,12 +136,12 @@ class PlayerGameState:
             if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
             elif self.player.score > 4 and self.battle_cooldown <= 0:
-                if roll < 0.08:
+                if roll < 0.12:
                     modifier = "darkness"
-                    self.battle_cooldown = 15
-                elif roll < 0.14:
+                    self.battle_cooldown = 10
+                elif roll < 0.22:
                     is_battle = True
-                    self.battle_cooldown = 15
+                    self.battle_cooldown = 10
             elif self.player.score > 5 and roll < 0.21:
                 # Double-arrow: pick a second distinct direction compatible with next_dir
                 other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
