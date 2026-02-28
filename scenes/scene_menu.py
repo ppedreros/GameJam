@@ -67,9 +67,9 @@ class MenuScene:
             alpha = int(40 + 30 * math.sin(t * 2.0 + i))
             draw_rectangle(dx, dy, 2, 2, Color(255, 255, 255, alpha))
         
-        # Title
-        title = "REACT & JUMP 3D"
-        title_size = 60
+        # Title Background
+        title = "COMBO CRUSH"
+        title_size = min(90, SCREEN_WIDTH // 10)
         title_w = measure_text(title, title_size)
         title_y = 60
         float_y = math.sin(t * 2.0) * 8.0
