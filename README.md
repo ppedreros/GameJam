@@ -1,4 +1,6 @@
-# 🎮 COMBO CRUSH
+<div align="center">
+  <img width="769" height="150" alt="image" src="https://github.com/user-attachments/assets/366e6681-ea70-4340-91b8-68985275f282" />
+</div>
 
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![Raylib](https://img.shields.io/badge/raylib-5.5-lightgrey.svg)](https://www.raylib.com/)
@@ -7,7 +9,6 @@
 
 Jump rapidly along an infinite neon highway by matching your keyboard inputs to the arrows on incoming platforms. Survive as long as you can in Solo Mode, or face off against a friend in a chaotic Local Split-Screen Multiplayer match to see who has the fastest reflexes!
 
-![Game Preview](path/to/screenshot/if/any) *(Replace with actual screenshot)*
 
 ## 🌟 Features
 
