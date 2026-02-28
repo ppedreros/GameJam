@@ -14,7 +14,7 @@ class MenuScene:
         # Hold-to-start state
         self.p1_hold_time = 0.0
         self.p2_hold_time = 0.0
-        self.HOLD_REQUIRED = 2.0
+        self.HOLD_REQUIRED = 0.05
 
     def update(self, dt):
         if self.phase == 0:

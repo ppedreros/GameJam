@@ -5,21 +5,21 @@ from game import Game
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 def main():
-    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "React & Jump 3D!")
-    set_target_fps(60)
+    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "React & Jump 3D!") # type: ignore
+    set_target_fps(60) # type: ignore
 
     game = Game()
 
-    while not window_should_close():
-        dt = get_frame_time()
+    while not window_should_close(): # type: ignore
+        dt = get_frame_time() # type: ignore
         
         game.update(dt)
         
-        begin_drawing()
+        begin_drawing() # type: ignore
         game.draw()
-        end_drawing()
+        end_drawing() # type: ignore
 
-    close_window()
+    close_window() # type: ignore
     return 0
 
 if __name__ == '__main__':

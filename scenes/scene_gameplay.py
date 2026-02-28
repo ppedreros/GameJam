@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 import math
 from pyray import *
 from entities.player import Player3D
@@ -40,8 +41,9 @@ class BackgroundStar:
 
 
 class PlayerGameState:
-    def __init__(self, is_player1=True, render_width=None):
+    def __init__(self, is_player1=True, render_width=None, can_duel=False):
         self.is_player1 = is_player1
+        self.can_duel = can_duel
         self.camera = Camera3D()
         self.camera.position = Vector3(0.0, 8.0, -6.0)
         self.camera.target = Vector3(0.0, 1.0, 0.0)
@@ -57,6 +59,7 @@ class PlayerGameState:
         self.triggered_modifier = None
         self.modifier_active = False  # Set externally by GameplayScene
         self.darkness_timer = 0.0    # local timer managed here
+        self.platforms_since_minigame = 0
         
         for _ in range(20):
             self.generate_platform(self.platforms[-1])
@@ -118,18 +121,51 @@ class PlayerGameState:
             
         next_dir = random.choice(possible_dirs)
         
+        self.platforms_since_minigame += 1
+        
         modifier = None
         if not self.modifier_active:
-            roll = random.random()
-            if self.player.score > 2 and roll < 0.15:
-                modifier = "screen_swap"
-            elif self.player.score > 4 and roll < 0.23:
-                modifier = "darkness"
+            # We want a minigame to appear roughly once every 100 platforms. 
+            # We increase the probability as we get closer to 100.
+            # Base chance: 0.2% -> At 50: 2% -> At 80: 10% -> At 100: 100%
+            progress = self.platforms_since_minigame / 100.0
+            spawn_chance = 0.0
+            if progress > 1.0: spawn_chance = 1.0
+            elif progress > 0.8: spawn_chance = 0.10
+            elif progress > 0.5: spawn_chance = 0.02
+            else: spawn_chance = 0.002
+            
+            if random.random() < spawn_chance and self.player.score > 5:
+                # Trigger a minigame
+                self.platforms_since_minigame = 0
+                choices = ["minigame", "parkour"]
+                if getattr(self, "can_duel", False):
+                    choices.append("duel")
+                modifier = random.choice(choices)
+            else:
+                # Normal random modifiers (screen_swap, darkness)
+                roll = random.random()
+                
+                # screen_swap: 10% chance
+                if self.player.score > 2 and roll < 0.10:
+                    modifier = "screen_swap"
+                # darkness: 10% chance
+                elif self.player.score > 4 and 0.10 <= roll < 0.20:
+                    modifier = "darkness"
             
         new_plat = Platform3D(x, z, next_dir, modifier=modifier)
-        # Color based on score milestone
-        palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
-        new_plat.color = NEON_PALETTES[palette_idx]
+        
+        # Color based on score milestone, but special colors for minigames
+        if modifier == "minigame":
+            new_plat.color = Color(255, 105, 180, 255) # Hot Pink
+        elif modifier == "duel":
+            new_plat.color = Color(0, 255, 0, 255) # Green
+        elif modifier == "parkour":
+            new_plat.color = Color(253, 249, 0, 255) # Yellow
+        else:
+            palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
+            new_plat.color = NEON_PALETTES[palette_idx]
+            
         self.platforms.append(new_plat)
 
     def trigger_screen_shake(self, duration=0.3):
@@ -265,12 +301,6 @@ class PlayerGameState:
                     self.player.jump_progress = 0.0
                     
                     self.current_plat_index += 1
-                    
-                    # Trigger Minigame check at index 10 (Wait, they have to land precisely on index 10 or jump FROM it?)
-                    # Let's say if they land ON 10
-                    # Actually, the trigger might be easier to manage at the scene level, but let's signal it:
-                    if self.current_plat_index == 10:
-                        self.triggered_modifier = "minigame"
                         
                     next_plat = self.platforms[self.current_plat_index]
                     self.player.jump_target_pos = Vector3(next_plat.pos.x, 2.0, next_plat.pos.z)
@@ -414,6 +444,15 @@ class PlayerGameState:
                 elif getattr(plat, 'modifier', None) == "darkness":
                     face_color = base_plat_color
                     glow_color = Color(255, 100, 0, int(80 + 80 * pulse))
+                elif getattr(plat, 'modifier', None) == "minigame":
+                    face_color = plat.color
+                    glow_color = Color(255, 105, 180, int(120 + 80 * pulse))
+                elif getattr(plat, 'modifier', None) == "duel":
+                    face_color = plat.color
+                    glow_color = Color(0, 255, 0, int(120 + 80 * pulse))
+                elif getattr(plat, 'modifier', None) == "parkour":
+                    face_color = plat.color
+                    glow_color = Color(253, 249, 0, int(120 + 80 * pulse)) # Yellow
                 else:
                     face_color = LIME
                     glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
@@ -424,7 +463,14 @@ class PlayerGameState:
                 # Future platforms: gentle bobbing
                 bob = math.sin(t_now * 2.0 + i * 0.7) * 0.15
                 pos = Vector3(plat.pos.x, plat.pos.y + bob, plat.pos.z)
-                draw_cube_v(pos, plat.size, base_plat_color)
+                
+                # Check directly on the platform color
+                if getattr(plat, 'modifier', None) in ("minigame", "duel", "parkour"):
+                    p_color = plat.color
+                else:
+                    p_color = base_plat_color
+                    
+                draw_cube_v(pos, plat.size, p_color)
                 draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
             if i >= self.current_plat_index:
@@ -641,10 +687,20 @@ class GameplayScene:
             self.p1_state = PlayerGameState(is_player1=True, render_width=SCREEN_WIDTH)
             self.p2_state = None
         else:
-            self.p1_state = PlayerGameState(is_player1=True)
-            self.p2_state = PlayerGameState(is_player1=False)
+            self.p1_state = PlayerGameState(is_player1=True, can_duel=True)
+            self.p2_state = PlayerGameState(is_player1=False, can_duel=True)
+            
+        self.pending_minigame = None
+        self.transition_timer = 0.0
 
     def update(self, dt):
+        if self.pending_minigame:
+            self.transition_timer -= dt
+            if self.transition_timer <= 0:
+                self.game.change_scene(self.pending_minigame)
+                self.pending_minigame = None
+            return
+
         self.p1_state.update_logic(dt)
         
         if self.active_modifier_timer > 0:
@@ -657,17 +713,42 @@ class GameplayScene:
         
         if p1_mod or p2_mod:
             triggered = p1_mod or p2_mod
-            if triggered == "minigame" and not self.singleplayer:
+            if triggered == "minigame":
                 # Trigger minigame switch
                 from scenes.scene_minigame import MinigameScene
-                minigame = MinigameScene(
+                self.pending_minigame = MinigameScene(
                     self.game, self, 
                     self.p1_state.player.score, 
-                    self.p2_state.player.score
+                    self.p2_state.player.score if not self.singleplayer else 0
                 )
-                self.game.change_scene(minigame)
+                self.transition_timer = 1.0
                 self.p1_state.triggered_modifier = None
-                self.p2_state.triggered_modifier = None
+                if not self.singleplayer:
+                    self.p2_state.triggered_modifier = None
+                return # Skip rest of update this frame
+            elif triggered == "duel":
+                from scenes.scene_duel_minigame import DuelMinigameScene
+                self.pending_minigame = DuelMinigameScene(
+                    self.game, self,
+                    self.p1_state.player.score,
+                    self.p2_state.player.score if self.p2_state else 0
+                )
+                self.transition_timer = 1.0
+                self.p1_state.triggered_modifier = None
+                if not self.singleplayer:
+                    self.p2_state.triggered_modifier = None
+                return # Skip rest of update this frame
+            elif triggered == "parkour":
+                from scenes.scene_parkour import ParkourScene
+                self.pending_minigame = ParkourScene(
+                    self.game, self,
+                    self.p1_state.player.score,
+                    self.p2_state.player.score if self.p2_state else 0
+                )
+                self.transition_timer = 1.0
+                self.p1_state.triggered_modifier = None
+                if not self.singleplayer:
+                    self.p2_state.triggered_modifier = None
                 return # Skip rest of update this frame
             else:
                 self.active_modifier = triggered
@@ -787,4 +868,29 @@ class GameplayScene:
             txt_w = measure_text(countdown_txt, txt_size)
             txt_alpha = int(180 + 75 * pulse_warn)
             draw_text(countdown_txt, SCREEN_WIDTH // 2 - txt_w // 2, 20, txt_size, Color(255, 200, 0, txt_alpha))
+
+        # --- Transition Overlay ---
+        if self.pending_minigame:
+            # sliding split-screen transition
+            t = 1.0 - max(0.0, self.transition_timer) # 0.0 to 1.0
+            
+            # Draw the two sliding black panels
+            # Left panel slides right from 0 to SCREEN_WIDTH/2
+            left_w = int((SCREEN_WIDTH / 2) * t)
+            draw_rectangle(0, 0, left_w, SCREEN_HEIGHT, Color(0, 0, 0, 255))
+            
+            # Right panel slides left from SCREEN_WIDTH to SCREEN_WIDTH/2
+            right_w = int((SCREEN_WIDTH / 2) * t)
+            draw_rectangle(SCREEN_WIDTH - right_w, 0, right_w, SCREEN_HEIGHT, Color(0, 0, 0, 255))
+            
+            # Draw a glowing vertical line at the edge of the panels
+            if t > 0.01:
+                ColorEdge = Color(0, 255, 255, 255) # Cyan
+                if hasattr(self.pending_minigame, "winner"): # simple heuristic to check if it's duel minigame
+                    ColorEdge = Color(0, 228, 48, 255) # Lime
+                else:
+                    ColorEdge = Color(255, 105, 180, 255) # Hot Pink
+                    
+                draw_rectangle(left_w - 2, 0, 4, SCREEN_HEIGHT, ColorEdge)
+                draw_rectangle(SCREEN_WIDTH - right_w - 2, 0, 4, SCREEN_HEIGHT, ColorEdge)
 
