@@ -1,4 +1,4 @@
-from raylibpy import Vector3, RED
+from pyray import Vector3, RED
 
 class Player3D:
     def __init__(self):

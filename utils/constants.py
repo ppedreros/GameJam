@@ -1,4 +1,4 @@
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = 1200
 SCREEN_HEIGHT = 600
 
 # Constants for directions (using arrow keys)
