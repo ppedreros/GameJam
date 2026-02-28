@@ -61,9 +61,10 @@ class PlayerGameState:
         self.current_plat_index = 0
         self.game_over = False
         self.game_started = False
-        self.MAX_TIME = 2.0
+        self.MAX_TIME = 10.0
         self.time_left = self.MAX_TIME
         self.JUMP_DURATION = 0.2
+        self.just_landed_on_battle = False
         
         # Render target — full screen for single player, half for split
         self.render_width = render_width if render_width else int(SCREEN_WIDTH / 2)
@@ -113,17 +114,9 @@ class PlayerGameState:
             possible_dirs = [DIR_RIGHT, DIR_DOWN, DIR_LEFT]
             
         next_dir = random.choice(possible_dirs)
-        new_plat = Platform3D(x, z, next_dir)
-        # Color based on score milestone
-        palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
-        new_plat.color = NEON_PALETTES[palette_idx]
-        self.platforms.append(new_plat)
-
-    def trigger_screen_shake(self, duration=0.3):
-        self.screen_shake_timer = duration
-
-    def trigger_screen_flash(self, alpha=0.25):
-        self.screen_flash_alpha = alpha
+        is_battle = random.random() < 0.01 # 1% chance
+        
+        self.platforms.append(Platform3D(x, z, next_dir, is_battle=is_battle))
 
     def update_logic(self, dt):
         # Update particles
@@ -222,6 +215,10 @@ class PlayerGameState:
                 self.player.pos = self.player.jump_target_pos
                 if self.player.pos.y < 0:
                     self.game_over = True
+                else:
+                    if self.platforms[self.current_plat_index].is_battle:
+                        self.platforms[self.current_plat_index].is_battle = False
+                        self.just_landed_on_battle = True
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -270,7 +267,7 @@ class PlayerGameState:
                     # Screen flash on success
                     self.trigger_screen_flash(0.15 + min(0.15, self.combo * 0.02))
                     
-                    time_added = max(0.4, 1.5 - (self.player.score * 0.05))
+                    time_added = max(0.2, 1.0 - (self.player.score * 0.03))
                     self.time_left = min(self.MAX_TIME, self.time_left + time_added)
                     
                     if len(self.platforms) - self.current_plat_index < 10:
@@ -284,21 +281,19 @@ class PlayerGameState:
                         self.trigger_screen_flash(0.4)
                         
                 else:
-                    wrong_offset = get_direction_vector(pressed_dir)
-                    self.player.jump_target_pos = Vector3(
-                        self.player.pos.x + wrong_offset.x, 
-                        -10.0, 
-                        self.player.pos.z + wrong_offset.z
-                    )
-                    self.game_over = True
-                    self.combo = 0
-                    self.trigger_screen_shake(0.5)
-                    self.particles.emit_death_burst(
-                        self.player.pos.x, self.player.pos.y, self.player.pos.z,
-                        Color(255, 100, 100, 255), count=30
-                    )
+                    self.time_left -= 1.5
+                    if self.time_left <= 0:
+                        self.time_left = 0
+                        wrong_offset = get_direction_vector(pressed_dir)
+                        self.player.jump_target_pos = Vector3(
+                            self.player.pos.x + wrong_offset.x, 
+                            -10.0, 
+                            self.player.pos.z + wrong_offset.z
+                        )
+                        self.game_over = True
+                    else:
+                        self.player.jump_target_pos = self.player.pos
 
-        # Camera follow
         target_cam_pos = Vector3(
             self.player.pos.x - 6.0 * (math.sin(self.time_left) * 0.1 if self.game_started and not self.game_over else 0),
             self.player.pos.y + 6.0,
@@ -380,7 +375,7 @@ class PlayerGameState:
                 draw_cube_v(pos, plat.size, plat.color)
                 draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
-            if i >= self.current_plat_index:
+            if i >= self.current_plat_index and not plat.is_battle:
                 draw_arrow(plat)
         
         # Player shadow blob on ground
@@ -524,6 +519,13 @@ class GameplayScene:
             self.p2_state = PlayerGameState(is_player1=False)
 
     def update(self, dt):
+        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+            self.p1_state.just_landed_on_battle = False
+            self.p2_state.just_landed_on_battle = False
+            from scenes.scene_battle import BattleScene
+            self.game.change_scene(BattleScene(self.game, self))
+            return
+            
         self.p1_state.update_logic(dt)
         
         if self.singleplayer:
