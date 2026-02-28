@@ -136,7 +136,10 @@ class PlayerGameState:
             if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
             elif self.player.score > 4 and self.battle_cooldown <= 0:
-                if roll < 0.12:
+                if not getattr(self.parent_scene, 'singleplayer', True) and roll < 0.05:
+                    modifier = "minigame"
+                    self.battle_cooldown = 10
+                elif roll < 0.12:
                     modifier = "darkness"
                     self.battle_cooldown = 10
                 elif roll < 0.18:
@@ -156,7 +159,7 @@ class PlayerGameState:
             palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
             new_plat.color = NEON_PALETTES[palette_idx]
             
-        if self.battle_cooldown > 0 and modifier != "darkness" and not is_battle:
+        if self.battle_cooldown > 0 and modifier not in ("darkness", "minigame") and not is_battle:
             self.battle_cooldown -= 1
             
         self.platforms.append(new_plat)
@@ -275,7 +278,14 @@ class PlayerGameState:
                         landed_plat = self.platforms[self.current_plat_index]
                         mod = getattr(landed_plat, 'modifier', None)
                         if mod is not None:
-                            self.triggered_modifier = mod
+                            if mod == "minigame":
+                                from scenes.scene_minigame import MinigameScene
+                                p1_score = self.parent_scene.p1_state.player.score
+                                p2_score = self.parent_scene.p2_state.player.score
+                                self.parent_scene.game.change_scene(MinigameScene(self.parent_scene.game, self.parent_scene, p1_score, p2_score))
+                                landed_plat.modifier = None  # Consume the tile
+                            else:
+                                self.triggered_modifier = mod
                         if getattr(landed_plat, 'is_battle', False) and not getattr(landed_plat, 'battle_triggered', False):
                             landed_plat.battle_triggered = True
                             self.just_landed_on_battle = True
@@ -472,6 +482,8 @@ class PlayerGameState:
                 c = Color(base_plat_color.r, base_plat_color.g, base_plat_color.b, int(255 * fade_t))
                 if getattr(plat, 'modifier', None) == "darkness":
                     draw_cylinder(pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 6, c)
+                elif getattr(plat, 'modifier', None) == "minigame":
+                    draw_cylinder(pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 5, c)
                 else:
                     draw_cube_v(pos, plat.size, c)
             elif i == self.current_plat_index:
@@ -487,6 +499,9 @@ class PlayerGameState:
                 elif getattr(plat, 'modifier', None) == "darkness":
                     face_color = base_plat_color
                     glow_color = Color(255, 100, 0, int(80 + 80 * pulse))
+                elif getattr(plat, 'modifier', None) == "minigame":
+                    face_color = base_plat_color
+                    glow_color = Color(255, 0, 255, int(100 + 100 * pulse)) # Magenta
                 else:
                     face_color = LIME
                     glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
@@ -494,6 +509,9 @@ class PlayerGameState:
                 if getattr(plat, 'modifier', None) == "darkness":
                     draw_cylinder(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size.x * 0.6, glow_size.x * 0.6, glow_size.y, 6, glow_color)
                     draw_cylinder(plat.pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 6, face_color)
+                elif getattr(plat, 'modifier', None) == "minigame":
+                    draw_cylinder(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size.x * 0.6, glow_size.x * 0.6, glow_size.y, 5, glow_color)
+                    draw_cylinder(plat.pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 5, face_color)
                 else:
                     draw_cube_v(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size, glow_color)
                     draw_cube_v(plat.pos, plat.size, face_color)
@@ -508,6 +526,11 @@ class PlayerGameState:
                     pulse_d = (math.sin(t_now * 8.0) + 1.0) / 2.0
                     wire_color = Color(255, 140, 0, int(150 + 105 * pulse_d))
                     draw_cylinder_wires(pos, plat.size.x * 0.6 + 0.05, plat.size.x * 0.6 + 0.05, plat.size.y + 0.05, 6, wire_color)
+                elif getattr(plat, 'modifier', None) == "minigame":
+                    draw_cylinder(pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 5, base_plat_color)
+                    pulse_m = (math.sin(t_now * 12.0) + 1.0) / 2.0
+                    wire_color = Color(255, 0, 255, int(150 + 105 * pulse_m))
+                    draw_cylinder_wires(pos, plat.size.x * 0.6 + 0.05, plat.size.x * 0.6 + 0.05, plat.size.y + 0.05, 5, wire_color)
                 else:
                     draw_cube_v(pos, plat.size, base_plat_color)
                     if getattr(plat, 'is_battle', False):
