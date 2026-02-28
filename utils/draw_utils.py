@@ -24,29 +24,29 @@ def _draw_single_arrow(plat_pos, direction, offset_x, is_inverted=False):
     shaft_height = 0.15
     shaft_length = 0.6
     
-    if platform.direction == DIR_DOWN:
-        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.1), shaft_width, shaft_height, shaft_length, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.3), 0.6, shaft_height, 0.2, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.5), 0.4, shaft_height, 0.2, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.7), 0.2, shaft_height, 0.2, color)
+    if direction == DIR_DOWN:
+        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.1), shaft_width, shaft_height, shaft_length, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.3), 0.6, shaft_height, 0.2, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.5), 0.4, shaft_height, 0.2, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.7), 0.2, shaft_height, 0.2, shaft_color)
         
-    elif platform.direction == DIR_UP:
-        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.1), shaft_width, shaft_height, shaft_length, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.3), 0.6, shaft_height, 0.2, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.5), 0.4, shaft_height, 0.2, color)
-        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.7), 0.2, shaft_height, 0.2, color)
+    elif direction == DIR_UP:
+        draw_cube(Vector3(pos.x, pos.y, pos.z - 0.1), shaft_width, shaft_height, shaft_length, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.3), 0.6, shaft_height, 0.2, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.5), 0.4, shaft_height, 0.2, shaft_color)
+        draw_cube(Vector3(pos.x, pos.y, pos.z + 0.7), 0.2, shaft_height, 0.2, shaft_color)
         
-    elif platform.direction == DIR_LEFT:
-        draw_cube(Vector3(pos.x - 0.1, pos.y, pos.z), shaft_length, shaft_height, shaft_width, color)
-        draw_cube(Vector3(pos.x + 0.3, pos.y, pos.z), 0.2, shaft_height, 0.6, color)
-        draw_cube(Vector3(pos.x + 0.5, pos.y, pos.z), 0.2, shaft_height, 0.4, color)
-        draw_cube(Vector3(pos.x + 0.7, pos.y, pos.z), 0.2, shaft_height, 0.2, color)
+    elif direction == DIR_LEFT:
+        draw_cube(Vector3(pos.x - 0.1, pos.y, pos.z), shaft_length, shaft_height, shaft_width, shaft_color)
+        draw_cube(Vector3(pos.x + 0.3, pos.y, pos.z), 0.2, shaft_height, 0.6, shaft_color)
+        draw_cube(Vector3(pos.x + 0.5, pos.y, pos.z), 0.2, shaft_height, 0.4, shaft_color)
+        draw_cube(Vector3(pos.x + 0.7, pos.y, pos.z), 0.2, shaft_height, 0.2, shaft_color)
         
-    elif platform.direction == DIR_RIGHT:
-        draw_cube(Vector3(pos.x + 0.1, pos.y, pos.z), shaft_length, shaft_height, shaft_width, color)
-        draw_cube(Vector3(pos.x - 0.3, pos.y, pos.z), 0.2, shaft_height, 0.6, color)
-        draw_cube(Vector3(pos.x - 0.5, pos.y, pos.z), 0.2, shaft_height, 0.4, color)
-        draw_cube(Vector3(pos.x - 0.7, pos.y, pos.z), 0.2, shaft_height, 0.2, color)
+    elif direction == DIR_RIGHT:
+        draw_cube(Vector3(pos.x + 0.1, pos.y, pos.z), shaft_length, shaft_height, shaft_width, shaft_color)
+        draw_cube(Vector3(pos.x - 0.3, pos.y, pos.z), 0.2, shaft_height, 0.6, shaft_color)
+        draw_cube(Vector3(pos.x - 0.5, pos.y, pos.z), 0.2, shaft_height, 0.4, shaft_color)
+        draw_cube(Vector3(pos.x - 0.7, pos.y, pos.z), 0.2, shaft_height, 0.2, shaft_color)
 
 def draw_rounded_panel(x, y, width, height, bg_color, shadow_color=Color(0,0,0,100), shadow_offset=4, roundness=0.2, segments=10):
     """Draws a rounded rectangle with a soft drop shadow effect."""
