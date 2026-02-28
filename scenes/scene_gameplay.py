@@ -40,7 +40,8 @@ class BackgroundStar:
 
 
 class PlayerGameState:
-    def __init__(self, is_player1=True, render_width=None):
+    def __init__(self, parent_scene, is_player1=True, render_width=None):
+        self.parent_scene = parent_scene
         self.is_player1 = is_player1
         self.camera = Camera3D()
         self.camera.position = Vector3(0.0, 8.0, -6.0)
@@ -53,7 +54,7 @@ class PlayerGameState:
         self.player.color = Color(0, 180, 255, 255) if is_player1 else Color(255, 80, 80, 255)
         
         self.platforms = []
-        self.platforms.append(Platform3D(0.0, 0.0, DIR_UP))
+        self.platforms.append(Platform3D(0.0, 0.0, (DIR_UP,)))
         self.triggered_modifier = None
         self.modifier_active = False  # Set externally by GameplayScene
         self.darkness_timer = 0.0    # local timer managed here
@@ -64,9 +65,11 @@ class PlayerGameState:
         self.current_plat_index = 0
         self.game_over = False
         self.game_started = False
-        self.MAX_TIME = 2.0
+        self.MAX_TIME = 10.0
         self.time_left = self.MAX_TIME
         self.JUMP_DURATION = 0.2
+        self.just_landed_on_battle = False
+        self.stun_timer = 0.0
         
         # Render target — full screen for single player, half for split
         self.render_width = render_width if render_width else int(SCREEN_WIDTH / 2)
@@ -102,31 +105,36 @@ class PlayerGameState:
         self.session_best = 0
 
     def generate_platform(self, last_plat):
-        offset = get_direction_vector(last_plat.direction)
+        # Use first direction for positional offset
+        offset = get_direction_vector(last_plat.directions[0])
         x = last_plat.pos.x + offset.x
         z = last_plat.pos.z + offset.z
         
+        last_primary = last_plat.directions[0]
         possible_dirs = [DIR_UP, DIR_RIGHT, DIR_LEFT]
-        if last_plat.direction == DIR_UP:
+        if last_primary == DIR_UP:
             possible_dirs = [DIR_UP, DIR_RIGHT, DIR_LEFT]
-        elif last_plat.direction == DIR_RIGHT:
+        elif last_primary == DIR_RIGHT:
             possible_dirs = [DIR_UP, DIR_RIGHT, DIR_DOWN]
-        elif last_plat.direction == DIR_LEFT:
+        elif last_primary == DIR_LEFT:
             possible_dirs = [DIR_UP, DIR_DOWN, DIR_LEFT]
-        elif last_plat.direction == DIR_DOWN:
+        elif last_primary == DIR_DOWN:
             possible_dirs = [DIR_RIGHT, DIR_DOWN, DIR_LEFT]
             
         next_dir = random.choice(possible_dirs)
         
         modifier = None
+        is_inverted = False
         if not self.modifier_active:
             roll = random.random()
-            if self.player.score > 2 and roll < 0.15:
+            if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
-            elif self.player.score > 4 and roll < 0.23:
+            elif self.player.score > 4 and roll < 0.08:
                 modifier = "darkness"
+            elif self.player.score > 3 and roll < 0.20:
+                is_inverted = True
             
-        new_plat = Platform3D(x, z, next_dir, modifier=modifier)
+        new_plat = Platform3D(x, z, (next_dir,), modifier=modifier, is_inverted=is_inverted)
         # Color based on score milestone
         palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
         new_plat.color = NEON_PALETTES[palette_idx]
@@ -212,6 +220,11 @@ class PlayerGameState:
         
         if self.game_over and not self.player.is_jumping:
             return
+            
+        if self.stun_timer > 0:
+            self.stun_timer -= dt
+            if self.stun_timer < 0:
+                self.stun_timer = 0.0
 
         if self.game_started and not self.player.is_jumping:
             self.time_left -= dt
@@ -241,6 +254,9 @@ class PlayerGameState:
                     mod = getattr(landed_plat, 'modifier', None)
                     if mod is not None:
                         self.triggered_modifier = mod  # route ALL modifiers through GameplayScene
+                    if getattr(landed_plat, 'is_battle', False):
+                        landed_plat.is_battle = False
+                        self.just_landed_on_battle = True
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -253,72 +269,62 @@ class PlayerGameState:
                 self.player.pos = Vector3(px, py, pz)
         
         elif not self.game_over:
-            pressed_dir = get_p1_pressed_direction() if self.is_player1 else get_p2_pressed_direction()
+            from systems.input_handler import get_p1_pressed_directions, get_p2_pressed_directions, get_p1_pressed_direction, get_p2_pressed_direction
             
-            if pressed_dir != -1:
+            # Read inputs normally based on the swapped identity
+            if self.is_player1:
+                p_directions = get_p1_pressed_directions()
+                p_pressed = get_p1_pressed_direction()
+            else:
+                p_directions = get_p2_pressed_directions()
+                p_pressed = get_p2_pressed_direction()
+            
+            # Use pressed direction to detect activity, use directions to map all simultaneous 
+            if p_pressed != -1:
                 if not self.game_started:
                     self.game_started = True
                     
-                self.player.is_jumping = True
-                self.player.jump_start_pos = self.player.pos
-                self.player.jump_progress = 0.0
-                
-                if pressed_dir == current_plat.direction:
-                    self.current_plat_index += 1
-                    next_plat = self.platforms[self.current_plat_index]
-                    self.player.jump_target_pos = Vector3(next_plat.pos.x, 2.0, next_plat.pos.z)
-                    
-                    # Combo system
-                    self.combo += 1
-                    self.combo_timer = 0.0
-                    self.combo_display_scale = 1.8  # Bounce!
-                    if self.combo > self.best_combo:
-                        self.best_combo = self.combo
-                    
-                    # Score with combo multiplier
-                    points = max(1, self.combo // 3 + 1)
-                    self.player.score += points
-                    
-                    if self.player.score > self.session_best:
-                        self.session_best = self.player.score
-                    
-                    # Score popup
-                    popup_text = f"+{points}" if self.combo < 3 else f"+{points} x{self.combo}!"
-                    self.particles.add_score_popup(popup_text, self.render_width // 2, SCREEN_HEIGHT // 2 - 50, GOLD)
-                    
-                    time_added = max(0.4, 1.5 - (self.player.score * 0.05))
-                    self.time_left = min(self.MAX_TIME, self.time_left + time_added)
-                    
-                    if len(self.platforms) - self.current_plat_index < 10:
-                        for _ in range(5):
-                            self.generate_platform(self.platforms[-1])
-                    
-                    # Color milestone
-                    new_milestone = self.player.score // 10
-                    if new_milestone > self.last_milestone:
-                        self.last_milestone = new_milestone
-                        
+                if self.stun_timer > 0:
+                    # Ignore input while stunned
+                    pass
                 else:
-                    wrong_offset = get_direction_vector(pressed_dir)
-                    self.player.jump_target_pos = Vector3(
-                        self.player.pos.x + wrong_offset.x, 
-                        -10.0, 
-                        self.player.pos.z + wrong_offset.z
-                    )
-                    self.game_over = True
-                    self.combo = 0
-                    self.trigger_screen_shake(0.5)
-                    self.particles.emit_death_burst(
-                        self.player.pos.x, self.player.pos.y, self.player.pos.z,
-                        Color(255, 100, 100, 255), count=30
-                    )
+                    req_dirs = current_plat.directions
+                    is_inverted = getattr(current_plat, 'is_inverted', False)
+                    
+                    if is_inverted:
+                        p_overlap = set(p_directions).intersection(set(req_dirs))
+                        if p_overlap:
+                            # Pressed a forbidden key
+                            self.stun_timer = 2.0
+                        else:
+                            # Successful jump on inverted tile
+                            self._execute_jump()
+                    else:
+                        # Standard logic
+                        if p_directions == req_dirs:
+                            self._execute_jump()
+                        else: 
+                            # Check if the newly pressed key is entirely invalid
+                            if p_pressed not in req_dirs or len(req_dirs) == 1 or len(p_directions) != len(req_dirs):
+                                self.player.is_jumping = True
+                                self.player.jump_start_pos = self.player.pos
+                                self.player.jump_progress = 0.0
+                                
+                                self.time_left -= 1.5
+                                if self.time_left <= 0:
+                                    self.time_left = 0
+                                    wrong_offset = get_direction_vector(p_pressed)
+                                    self.player.jump_target_pos = Vector3(
+                                        self.player.pos.x + wrong_offset.x, 
+                                        -10.0, 
+                                        self.player.pos.z + wrong_offset.z
+                                    )
+                                    self.game_over = True
+                                else:
+                                    self.player.jump_target_pos = self.player.pos
 
-        # Camera follow
-        
-        # Suavizar el seguimiento de la cámara en Y para evitar saltos bruscos
-        # Mientras jugamos apuntamos a la altura base (2.0), si caemos seguimos al jugador
         target_y = self.player.pos.y if (self.game_over and self.player.pos.y < 2.0) else 2.0
-        
+
         target_cam_pos = Vector3(
             self.player.pos.x - 6.0 * (math.sin(self.time_left) * 0.1 if self.game_started and not self.game_over else 0),
             target_y + 6.0,
@@ -341,6 +347,29 @@ class PlayerGameState:
             self.camera.target.x = self.player.pos.x
             self.camera.target.y += (target_look_y - self.camera.target.y) * 5.0 * dt
             self.camera.target.z = self.player.pos.z
+
+    def _execute_jump(self):
+        self.player.is_jumping = True
+        self.player.jump_start_pos = self.player.pos
+        self.player.jump_progress = 0.0
+        
+        self.current_plat_index += 1
+        next_plat = self.platforms[self.current_plat_index]
+        self.player.jump_target_pos = Vector3(next_plat.pos.x, 2.0, next_plat.pos.z)
+        
+        # Check swap!
+        if getattr(next_plat, 'is_swap', False):
+            self.parent_scene.trigger_swap()
+            next_plat.is_swap = False # clear it so they don't trigger it again if jumping in place
+            
+        self.player.score += 1
+        
+        time_added = max(0.3, 1.0 - (self.player.score * 0.03))
+        self.time_left = min(self.MAX_TIME, self.time_left + time_added)
+        
+        if len(self.platforms) - self.current_plat_index < 10:
+            for _ in range(5):
+                self.generate_platform(self.platforms[-1])
 
     def draw_to_texture(self):
         begin_texture_mode(self.render_target)
@@ -426,7 +455,7 @@ class PlayerGameState:
                 draw_cube_v(pos, plat.size, base_plat_color)
                 draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
-            if i >= self.current_plat_index:
+            if i >= self.current_plat_index and not plat.is_battle:
                 draw_arrow(plat)
         
         # Player shadow blob on ground
@@ -622,13 +651,32 @@ class PlayerGameState:
                 draw_rounded_panel_outline(self.render_width // 2 - prompt_w // 2 - 20, prompt_y - 10, prompt_w + 40, 40, fade(YELLOW, 0.3 + 0.5 * pulse), segments=10, thickness=2)
                 
                 draw_text_shadow(prompt, self.render_width // 2 - prompt_w // 2, prompt_y, 20, YELLOW)
+
+            # --- Stun Overlay ---
+            if self.stun_timer > 0:
+                overlay_alpha = min(0.5, self.stun_timer)
+                draw_rectangle(0, 0, self.render_width, SCREEN_HEIGHT, fade(RED, overlay_alpha))
+                
+                stun_text = "STUNNED!"
+                font_size = 50 + int(math.sin(self.stun_timer * 15.0) * 10)
+                tw = measure_text(stun_text, font_size)
+                draw_text_shadow(stun_text, self.render_width//2 - tw//2, SCREEN_HEIGHT//2 - 100, font_size, YELLOW, shadow_offset=4)
+                
+                sub_text = f"{self.stun_timer:.1f}s"
+                tw2 = measure_text(sub_text, 30)
+                draw_text_shadow(sub_text, self.render_width//2 - tw2//2, SCREEN_HEIGHT//2 - 40, 30, WHITE)
+                
+            # --- Swap Flash ---
+            if getattr(self.parent_scene, 'show_swap_flash', 0) > 0:
+                alpha = min(1.0, self.parent_scene.show_swap_flash)
+                draw_rectangle(0, 0, self.render_width, SCREEN_HEIGHT, fade(WHITE, alpha * 0.5))
                 
         end_texture_mode()
-
 
 class GameplayScene:
     def __init__(self, game, singleplayer=False):
         self.game = game
+        self.show_swap_flash = 0.0
         self.singleplayer = singleplayer
         
         self.active_modifier = None
@@ -637,22 +685,49 @@ class GameplayScene:
         self.modifier_target = 0.0       # target to lerp towards
         
         if singleplayer:
-            self.p1_state = PlayerGameState(is_player1=True, render_width=SCREEN_WIDTH)
+            self.p1_state = PlayerGameState(self, is_player1=True, render_width=SCREEN_WIDTH)
             self.p2_state = None
         else:
-            self.p1_state = PlayerGameState(is_player1=True)
-            self.p2_state = PlayerGameState(is_player1=False)
+            self.p1_state = PlayerGameState(self, is_player1=True)
+            self.p2_state = PlayerGameState(self, is_player1=False)
+
+    def trigger_swap(self):
+        self.show_swap_flash = 1.0
+        
+        # Swap identities
+        self.p1_state.is_player1, self.p2_state.is_player1 = self.p2_state.is_player1, self.p1_state.is_player1
+        # Swap colors
+        self.p1_state.player.color, self.p2_state.player.color = self.p2_state.player.color, self.p1_state.player.color
+        # Swap scores
+        self.p1_state.player.score, self.p2_state.player.score = self.p2_state.player.score, self.p1_state.player.score
+        # Swap time bars
+        self.p1_state.time_left, self.p2_state.time_left = self.p2_state.time_left, self.p1_state.time_left
+        # Swap stun status
+        self.p1_state.stun_timer, self.p2_state.stun_timer = self.p2_state.stun_timer, self.p1_state.stun_timer
 
     def update(self, dt):
+        if self.show_swap_flash > 0:
+            self.show_swap_flash -= dt * 2.0
+            
+        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+            self.p1_state.just_landed_on_battle = False
+            self.p2_state.just_landed_on_battle = False
+            from scenes.scene_battle import BattleScene
+            self.game.change_scene(BattleScene(self.game, self))
+            return
+            
         self.p1_state.update_logic(dt)
-        
+        if self.p2_state:
+            self.p2_state.update_logic(dt)
+
+        # --- Modifier processing ---
         if self.active_modifier_timer > 0:
             self.active_modifier_timer -= dt
             if self.active_modifier_timer <= 0:
-                self.modifier_target = 0.0  # reverse back
-            
+                self.modifier_target = 0.0  # screen_swap lerps back
+                
         p1_mod = getattr(self.p1_state, 'triggered_modifier', None)
-        p2_mod = getattr(self.p2_state, 'triggered_modifier', None) if not self.singleplayer else None
+        p2_mod = getattr(self.p2_state, 'triggered_modifier', None) if self.p2_state else None
         
         if p1_mod or p2_mod:
             triggered = p1_mod or p2_mod
@@ -661,55 +736,39 @@ class GameplayScene:
             if triggered == "screen_swap":
                 self.modifier_target = 1.0
             self.p1_state.triggered_modifier = None
-            if not self.singleplayer:
+            if self.p2_state:
                 self.p2_state.triggered_modifier = None
         
-        # Sync darkness_timer to both states so both screens go dark
+        # Sync darkness_timer to both states
         darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
         self.p1_state.darkness_timer = darkness_t
-        if not self.singleplayer:
+        if self.p2_state:
             self.p2_state.darkness_timer = darkness_t
         
-        # Sync modifier_active flag to PlayerGameState so generation is aware
+        # Sync modifier_active flag so generation is gated
         modifier_is_active = self.active_modifier_timer > 0
         self.p1_state.modifier_active = modifier_is_active
-        if not self.singleplayer:
+        if self.p2_state:
             self.p2_state.modifier_active = modifier_is_active
         
-        # Smooth lerp towards target
+        # Smooth screen_swap lerp
         SWAP_SPEED = 3.5
         self.modifier_transition += (self.modifier_target - self.modifier_transition) * SWAP_SPEED * dt
+
+        # Check win condition
+        p1_dead = self.p1_state.game_over and not self.p1_state.player.is_jumping
+        p2_dead = self.p2_state.game_over and not self.p2_state.player.is_jumping
         
-        if self.singleplayer:
-            p1_dead = self.p1_state.game_over and not self.p1_state.player.is_jumping
-            if p1_dead:
-                from scenes.scene_gameover import GameOverScene
-                self.game.change_scene(GameOverScene(
-                    self.game, None,
-                    self.p1_state.player.score, 0,
-                    self.p1_state.best_combo, 0,
-                    singleplayer=True
-                ))
-        else:
-            self.p2_state.update_logic(dt)
+        if p1_dead or p2_dead:
+            from scenes.scene_gameover import GameOverScene
             
-            p1_dead = self.p1_state.game_over and not self.p1_state.player.is_jumping
-            p2_dead = self.p2_state.game_over and not self.p2_state.player.is_jumping
-            
-            if p1_dead or p2_dead:
-                from scenes.scene_gameover import GameOverScene
+            winner = "Draw"
+            if p1_dead and not p2_dead:
+                winner = "Player 2"
+            elif p2_dead and not p1_dead:
+                winner = "Player 1"
                 
-                winner = "Draw"
-                if p1_dead and not p2_dead:
-                    winner = "Player 2"
-                elif p2_dead and not p1_dead:
-                    winner = "Player 1"
-                    
-                self.game.change_scene(GameOverScene(
-                    self.game, winner, 
-                    self.p1_state.player.score, self.p2_state.player.score,
-                    self.p1_state.best_combo, self.p2_state.best_combo
-                ))
+            self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, self.p2_state.player.score))
 
     def draw(self):
         self.p1_state.draw_to_texture()
