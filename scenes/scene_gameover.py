@@ -48,7 +48,7 @@ class GameOverScene:
                     # Restart same game mode
                     from scenes.scene_gameplay import GameplayScene
                     self.game.change_scene(GameplayScene(self.game, singleplayer=self.singleplayer))
-                elif is_key_pressed(KEY_ENTER):
+                elif is_key_pressed(KEY_ENTER) or is_key_pressed(KEY_ESCAPE):
                     # Return to menu
                     from scenes.scene_menu import MenuScene
                     self.game.change_scene(MenuScene(self.game))
@@ -79,9 +79,9 @@ class GameOverScene:
             draw_rounded_panel_outline(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.5 + 0.3 * pulse), segments=10, thickness=2)
             draw_text_shadow(text_enter, SCREEN_WIDTH // 2 - t_w // 2, btn_y + 12, 20, RAYWHITE)
         else:
-            # Phase 1: Restart (SPACE) or Menu (ENTER)
+            # Phase 1: Restart (SPACE) or Menu (ENTER/ESC)
             text_restart = "SPACE : Play Again"
-            text_menu = "ENTER : Main Menu"
+            text_menu = "ENTER/ESC : Main Menu"
             
             tr_w = measure_text(text_restart, 20)
             tm_w = measure_text(text_menu, 20)

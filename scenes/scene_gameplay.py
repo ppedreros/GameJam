@@ -66,7 +66,7 @@ class PlayerGameState:
         self.current_plat_index = 0
         self.game_over = False
         self.game_started = False
-        self.MAX_TIME = 10.0
+        self.MAX_TIME = 20.0
         self.time_left = self.MAX_TIME
         self.JUMP_DURATION = 0.2
         self.just_landed_on_battle = False
@@ -536,11 +536,11 @@ class PlayerGameState:
                                 self.stun_timer = 2.0
                             else:
                                 # Successful jump on inverted tile
-                                self._execute_jump()
+                                self._execute_jump(bonus_time=2.5 if (is_multi or getattr(current_plat, 'was_multi', False)) else 0.0)
                         else:
                             # Standard logic
                             if active_dirs == req_dirs:
-                                self._execute_jump()
+                                self._execute_jump(bonus_time=2.5 if (is_multi or getattr(current_plat, 'was_multi', False)) else 0.0)
                             else: 
                                 # For multi-arrow tiles: no penalty while building up the combo
                                 if not is_multi and (p_pressed not in req_dirs or len(p_directions) != len(req_dirs)):
@@ -590,7 +590,7 @@ class PlayerGameState:
             self.camera.target.y += (target_look_y - self.camera.target.y) * 5.0 * dt
             self.camera.target.z = self.player.pos.z
 
-    def _execute_jump(self, platforms_to_skip=1):
+    def _execute_jump(self, platforms_to_skip=1, bonus_time=0.0):
         self.player.is_jumping = True
         self.player.jump_start_pos = self.player.pos
         self.player.jump_progress = 0.0
@@ -654,6 +654,7 @@ class PlayerGameState:
                 self.combo_banner_timer = 0.7
         
         time_added = max(0.3, 1.0 - (self.player.score * 0.03)) * platforms_to_skip
+        time_added += bonus_time
         self.time_left = min(self.MAX_TIME, self.time_left + time_added)
 
     def draw_to_texture(self):
@@ -909,24 +910,24 @@ class PlayerGameState:
             # Pulsing urgency
             urg = (math.sin(t_now * 18.0) + 1.0) / 2.0
             # Dark overlay
-            draw_rectangle(0, SCREEN_HEIGHT // 2 - 55, self.render_width, 110, Color(0, 0, 0, 180))
+            draw_rectangle(0, SCREEN_HEIGHT // 2 - 80, self.render_width, 160, Color(0, 0, 0, 180))
             # Effect color
             eff_col = {"freeze": Color(80,180,255,255), "dark": Color(160,60,255,255), "minus_time": Color(255,100,30,255)}
             ec = eff_col.get(self.trap_dodge_effect, ORANGE)
             # "DODGE!" header
             header = "DODGE!"
-            hw = measure_text(header, 30)
-            draw_text(header, self.render_width // 2 - hw // 2, SCREEN_HEIGHT // 2 - 50, 30, Color(ec.r, ec.g, ec.b, int(200 + 55 * urg)))
+            hw = measure_text(header, 50)
+            draw_text(header, self.render_width // 2 - hw // 2, SCREEN_HEIGHT // 2 - 70, 50, Color(ec.r, ec.g, ec.b, int(200 + 55 * urg)))
             # Key to press
             key_lbl = dir_labels.get(self.trap_dodge_dir, "?")
             key_text = f"Press  {key_lbl}"
-            kw = measure_text(key_text, 22)
-            draw_text(key_text, self.render_width // 2 - kw // 2, SCREEN_HEIGHT // 2 - 14, 22, WHITE)
+            kw = measure_text(key_text, 36)
+            draw_text(key_text, self.render_width // 2 - kw // 2, SCREEN_HEIGHT // 2 - 14, 36, WHITE)
             # Countdown bar
-            bar_w = self.render_width - 80
-            bar_h = 12
-            bar_x = 40
-            bar_y = SCREEN_HEIGHT // 2 + 20
+            bar_w = self.render_width - 100
+            bar_h = 16
+            bar_x = 50
+            bar_y = SCREEN_HEIGHT // 2 + 40
             draw_rectangle(bar_x, bar_y, bar_w, bar_h, Color(40, 40, 40, 200))
             fill_col = Color(int(255 * (1 - ratio)), int(255 * ratio), 60, 230)
             draw_rectangle(bar_x, bar_y, int(bar_w * ratio), bar_h, fill_col)
@@ -935,10 +936,10 @@ class PlayerGameState:
         elif self.trap_dodge_success > 0:
             # "DODGED!" success flash
             alpha = int(min(255, self.trap_dodge_success * 255 / 1.2))
-            draw_rectangle(0, SCREEN_HEIGHT // 2 - 30, self.render_width, 60, Color(0, 0, 0, alpha // 2))
+            draw_rectangle(0, SCREEN_HEIGHT // 2 - 45, self.render_width, 90, Color(0, 0, 0, alpha // 2))
             msg = "DODGED!"
-            mw = measure_text(msg, 36)
-            draw_text(msg, self.render_width // 2 - mw // 2, SCREEN_HEIGHT // 2 - 18, 36, Color(80, 255, 120, alpha))
+            mw = measure_text(msg, 64)
+            draw_text(msg, self.render_width // 2 - mw // 2, SCREEN_HEIGHT // 2 - 32, 64, Color(80, 255, 120, alpha))
         
         # --- Darkness modifier overlay ---
         if self.darkness_timer > 0:
@@ -1081,7 +1082,7 @@ class PlayerGameState:
             # --- Combo Counter ---
             if self.combo >= 2 and self.game_started:
                 combo_text = f"x{self.combo}"
-                combo_fs = int(30 * self.combo_display_scale)
+                combo_fs = int(50 * self.combo_display_scale)
                 combo_w = measure_text(combo_text, combo_fs)
                 combo_x = self.render_width // 2 - combo_w // 2 + shake_x
                 combo_y = 70 + shake_y
@@ -1095,11 +1096,11 @@ class PlayerGameState:
             
             # --- Combo Milestone Banner ---
             if self.combo_banner_timer > 0 and self.combo_banner_text:
-                bfs = int(48 * self.combo_banner_scale)
+                bfs = int(80 * self.combo_banner_scale)
                 bfs = max(1, bfs)
                 bw = measure_text(self.combo_banner_text, bfs)
                 bx = self.render_width // 2 - bw // 2 + shake_x
-                by = 65 + shake_y
+                by = SCREEN_HEIGHT - 120 + shake_y
                 
                 # Determine colour by milestone
                 if "INSANE" in self.combo_banner_text:
@@ -1232,6 +1233,11 @@ class GameplayScene:
         self.p1_state.stun_timer, self.p2_state.stun_timer = self.p2_state.stun_timer, self.p1_state.stun_timer
 
     def update(self, dt):
+        if is_key_pressed(KEY_ESCAPE):
+            from scenes.scene_menu import MenuScene
+            self.game.change_scene(MenuScene(self.game))
+            return
+            
         if self.show_swap_flash > 0:
             self.show_swap_flash -= dt * 2.0
             
