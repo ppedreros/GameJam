@@ -96,25 +96,25 @@ class MenuScene:
 
     def _draw_mode_selection(self, t):
         # Panel
-        panel_w = 520
-        panel_h = 220
+        panel_w = 700
+        panel_h = 300
         panel_x = SCREEN_WIDTH // 2 - panel_w // 2
-        panel_y = 210
+        panel_y = 250
         
         draw_rounded_panel(panel_x, panel_y, panel_w, panel_h, fade(Color(20, 25, 50, 255), 0.85), shadow_offset=8, roundness=0.15)
         draw_rounded_panel_outline(panel_x, panel_y, panel_w, panel_h, fade(WHITE, 0.08), segments=10, thickness=2)
         
         inst = "SELECT MODE"
-        inst_w = measure_text(inst, 22)
-        draw_text_shadow(inst, SCREEN_WIDTH // 2 - inst_w // 2, panel_y + 20, 22, Color(220, 220, 240, 255))
+        inst_w = measure_text(inst, 32)
+        draw_text_shadow(inst, SCREEN_WIDTH // 2 - inst_w // 2, panel_y + 30, 32, Color(220, 220, 240, 255))
         
         # Two mode buttons
-        btn_w = 200
-        btn_h = 100
-        gap = 40
+        btn_w = 280
+        btn_h = 160
+        gap = 50
         total = btn_w * 2 + gap
         start_x = SCREEN_WIDTH // 2 - total // 2
-        btn_y = panel_y + 65
+        btn_y = panel_y + 90
         
         for i, (label, sub_label, icon) in enumerate([
             ("1 PLAYER", "Solo Mode", "WASD"),
@@ -136,24 +136,24 @@ class MenuScene:
             draw_rounded_panel_outline(bx, btn_y, btn_w, btn_h, border_color, segments=10, thickness=2 if selected else 1)
             
             # Label
-            lw = measure_text(label, 20)
+            lw = measure_text(label, 28)
             label_color = WHITE if selected else Color(150, 150, 170, 255)
-            draw_text_shadow(label, bx + btn_w // 2 - lw // 2, btn_y + 20, 20, label_color)
+            draw_text_shadow(label, bx + btn_w // 2 - lw // 2, btn_y + 30, 28, label_color)
             
             # Sub label
-            sw = measure_text(sub_label, 14)
-            draw_text(sub_label, bx + btn_w // 2 - sw // 2, btn_y + 48, 14, Color(120, 120, 150, 200))
+            sw = measure_text(sub_label, 18)
+            draw_text(sub_label, bx + btn_w // 2 - sw // 2, btn_y + 75, 18, Color(120, 120, 150, 200))
             
             # Controls hint
-            iw = measure_text(icon, 12)
-            draw_text(icon, bx + btn_w // 2 - iw // 2, btn_y + 72, 12, Color(100, 100, 130, 180))
+            iw = measure_text(icon, 16)
+            draw_text(icon, bx + btn_w // 2 - iw // 2, btn_y + 110, 16, Color(100, 100, 130, 180))
             
             # Selection arrow
             if selected:
                 arrow = ">"
-                aw = measure_text(arrow, 28)
+                aw = measure_text(arrow, 40)
                 bob = math.sin(t * 5.0) * 3.0
-                draw_text_shadow(arrow, int(bx - 20 + bob), btn_y + 35, 28, Color(0, 200, 255, 255))
+                draw_text_shadow(arrow, int(bx - 30 + bob), btn_y + 60, 40, Color(0, 200, 255, 255))
         
         # Navigation hint
         nav = "< A/D or Arrows to switch  |  ENTER to confirm >"
@@ -162,28 +162,28 @@ class MenuScene:
 
     def _draw_hold_to_start(self, t):
         # Panel
-        panel_w = 600
-        panel_h = 280
+        panel_w = 800
+        panel_h = 360
         panel_x = SCREEN_WIDTH // 2 - panel_w // 2
-        panel_y = 190
+        panel_y = 220
         
         draw_rounded_panel(panel_x, panel_y, panel_w, panel_h, fade(Color(20, 25, 50, 255), 0.85), shadow_offset=8, roundness=0.15)
         draw_rounded_panel_outline(panel_x, panel_y, panel_w, panel_h, fade(WHITE, 0.08), segments=10, thickness=2)
         
         inst = "Both players must HOLD their key to start!"
-        inst_w = measure_text(inst, 22)
-        draw_text_shadow(inst, SCREEN_WIDTH // 2 - inst_w // 2, panel_y + 25, 22, Color(220, 220, 240, 255))
+        inst_w = measure_text(inst, 32)
+        draw_text_shadow(inst, SCREEN_WIDTH // 2 - inst_w // 2, panel_y + 35, 32, Color(220, 220, 240, 255))
         
-        bar_w = 200
-        bar_h = 36
+        bar_w = 300
+        bar_h = 50
         
         # P1 section
         p1_center = panel_x + panel_w // 4
-        draw_text_shadow("PLAYER 1", p1_center - measure_text("PLAYER 1", 20) // 2, panel_y + 60, 20, Color(0, 180, 255, 255))
-        draw_text_shadow("Hold  W", p1_center - measure_text("Hold  W", 16) // 2, panel_y + 90, 16, LIGHTGRAY)
+        draw_text_shadow("PLAYER 1", p1_center - measure_text("PLAYER 1", 28) // 2, panel_y + 80, 28, Color(0, 180, 255, 255))
+        draw_text_shadow("Hold  W", p1_center - measure_text("Hold  W", 24) // 2, panel_y + 120, 24, LIGHTGRAY)
         
         bar_x = p1_center - bar_w // 2
-        bar_y = panel_y + 120
+        bar_y = panel_y + 160
         p1_ratio = self.p1_hold_time / self.HOLD_REQUIRED
         
         draw_rounded_panel(bar_x, bar_y, bar_w, bar_h, fade(BLACK, 0.5), shadow_offset=0, roundness=0.5)
@@ -194,16 +194,16 @@ class MenuScene:
                 draw_rectangle_rounded(Rectangle(bar_x + 6, bar_y + 5, fill_w - 6, (bar_h - 6) // 3), 0.5, 10, fade(WHITE, 0.3))
         
         if p1_ratio >= 1.0:
-            rw = measure_text("READY!", 22)
-            draw_text_shadow("READY!", p1_center - rw // 2, bar_y + bar_h + 15, 22, Color(0, 255, 100, 255))
+            rw = measure_text("READY!", 32)
+            draw_text_shadow("READY!", p1_center - rw // 2, bar_y + bar_h + 25, 32, Color(0, 255, 100, 255))
         
         # Divider
         draw_rectangle(SCREEN_WIDTH // 2, panel_y + 70, 1, 180, fade(WHITE, 0.15))
         
         # P2 section
         p2_center = panel_x + 3 * panel_w // 4
-        draw_text_shadow("PLAYER 2", p2_center - measure_text("PLAYER 2", 20) // 2, panel_y + 60, 20, Color(255, 80, 80, 255))
-        draw_text_shadow("Hold  UP", p2_center - measure_text("Hold  UP", 16) // 2, panel_y + 90, 16, LIGHTGRAY)
+        draw_text_shadow("PLAYER 2", p2_center - measure_text("PLAYER 2", 28) // 2, panel_y + 80, 28, Color(255, 80, 80, 255))
+        draw_text_shadow("Hold  UP", p2_center - measure_text("Hold  UP", 24) // 2, panel_y + 120, 24, LIGHTGRAY)
         
         bar_x2 = p2_center - bar_w // 2
         p2_ratio = self.p2_hold_time / self.HOLD_REQUIRED
@@ -216,10 +216,10 @@ class MenuScene:
                 draw_rectangle_rounded(Rectangle(bar_x2 + 6, bar_y + 5, fill_w2 - 6, (bar_h - 6) // 3), 0.5, 10, fade(WHITE, 0.3))
         
         if p2_ratio >= 1.0:
-            rw = measure_text("READY!", 22)
-            draw_text_shadow("READY!", p2_center - rw // 2, bar_y + bar_h + 15, 22, Color(0, 255, 100, 255))
+            rw = measure_text("READY!", 32)
+            draw_text_shadow("READY!", p2_center - rw // 2, bar_y + bar_h + 25, 32, Color(0, 255, 100, 255))
         
         # Back hint
         back = "Press ESC to go back"
-        bw = measure_text(back, 14)
-        draw_text(back, SCREEN_WIDTH // 2 - bw // 2, panel_y + panel_h - 25, 14, Color(130, 130, 160, 180))
+        bw = measure_text(back, 18)
+        draw_text(back, SCREEN_WIDTH // 2 - bw // 2, panel_y + panel_h - 35, 18, Color(130, 130, 160, 180))
