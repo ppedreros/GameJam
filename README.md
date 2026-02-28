@@ -89,7 +89,7 @@ You will find the executable inside the `dist/ComboCrush/` directory.
 
 * **Juan David Cepeda** - [GitHub](https://github.com/DavidCepeda13)
 * **Pablo Pedreros** - [GitHub](https://github.com/ppedreros)
-* **Jorge** - [GitHub](https://github.com/Pekkads)
+* **Jorge Claros** - [GitHub](https://github.com/Pekkads)
 * **Juan Felipe Hernández** - [GitHub](https://github.com/jfh000)
 
 ## 🎵 Assets & Credits
