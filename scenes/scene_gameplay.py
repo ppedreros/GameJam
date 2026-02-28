@@ -50,7 +50,9 @@ class GameplayScene:
         self.platforms.append(Platform3D(x, z, next_dir))
 
     def update(self, dt):
-        if self.game_over:
+        if self.game_over and not self.player.is_jumping:
+            from scenes.scene_gameover import GameOverScene
+            self.game.change_scene(GameOverScene(self.game, self.player.score))
             return
 
         if self.game_started and not self.player.is_jumping:
@@ -127,10 +129,6 @@ class GameplayScene:
         self.camera.target.x = self.player.pos.x
         self.camera.target.y = self.player.pos.y - 1.0
         self.camera.target.z = self.player.pos.z
-
-        if self.game_over and not self.player.is_jumping: # transition when falling animation is done
-            from scenes.scene_gameover import GameOverScene
-            self.game.change_scene(GameOverScene(self.game, self.player.score))
 
     def draw(self):
         clear_background(BLACK)
