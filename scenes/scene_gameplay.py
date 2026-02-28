@@ -771,13 +771,26 @@ class GameplayScene:
         
         if p1_mod or p2_mod:
             triggered = p1_mod or p2_mod
-            self.active_modifier = triggered
-            self.active_modifier_timer = 6.0
-            if triggered == "screen_swap":
-                self.modifier_target = 1.0
-            self.p1_state.triggered_modifier = None
-            if self.p2_state:
+            if triggered == "minigame" and not self.singleplayer:
+                # Trigger minigame switch
+                from scenes.scene_minigame import MinigameScene
+                minigame = MinigameScene(
+                    self.game, self, 
+                    self.p1_state.player.score, 
+                    self.p2_state.player.score
+                )
+                self.game.change_scene(minigame)
+                self.p1_state.triggered_modifier = None
                 self.p2_state.triggered_modifier = None
+                return # Skip rest of update this frame
+            else:
+                self.active_modifier = triggered
+                self.active_modifier_timer = 6.0
+                if triggered == "screen_swap":
+                    self.modifier_target = 1.0
+                self.p1_state.triggered_modifier = None
+                if self.p2_state:
+                    self.p2_state.triggered_modifier = None
         
         # Sync darkness_timer to both states
         darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
