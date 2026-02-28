@@ -81,6 +81,13 @@ pyinstaller --noconfirm --onedir --windowed --add-data "assets;assets" --name "C
 ```
 You will find the executable inside the `dist/ComboCrush/` directory.
 
+## 👨‍💻 Team
+
+* **Juan David Cepeda** - [GitHub](https://github.com/DavidCepeda13)
+* **Pablo Pedreros** - [GitHub](https://github.com/ppedreros)
+* **Jorge** - [GitHub](https://github.com/jorge)
+* **Juan Felipe Hernández** - [GitHub](https://github.com/jfh000)
+
 ## 🎵 Assets & Credits
 
 * **Engine:** Powered by [Raylib](https://www.raylib.com/) via `pyray`.
