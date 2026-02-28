@@ -4,7 +4,7 @@ from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 from utils.draw_utils import draw_rounded_panel, draw_rounded_panel_outline, draw_text_shadow
 
 class GameOverScene:
-    def __init__(self, game, winner, p1_score, p2_score, p1_combo=0, p2_combo=0, singleplayer=False, p1_color=None, p2_color=None):
+    def __init__(self, game, winner, p1_score, p2_score, p1_combo=0, p2_combo=0, singleplayer=False, p1_color=None, p2_color=None, p1_crowns=0, p2_crowns=0):
         self.game = game
         self.winner = winner
         self.p1_score = p1_score
@@ -12,6 +12,11 @@ class GameOverScene:
         self.p1_combo = p1_combo
         self.p2_combo = p2_combo
         self.singleplayer = singleplayer
+        self.p1_crowns = p1_crowns
+        self.p2_crowns = p2_crowns
+        # Final score = crowns * 25 + base score
+        self.p1_final = p1_crowns * 25 + p1_score
+        self.p2_final = p2_crowns * 25 + p2_score
         
         self.p1_color = p1_color if p1_color else Color(0, 180, 255, 255)
         self.p2_color = p2_color if p2_color else Color(255, 80, 80, 255)
@@ -143,8 +148,8 @@ class GameOverScene:
         draw_text_shadow(win_text, SCREEN_WIDTH // 2 - t1_w // 2, int(SCREEN_HEIGHT * 0.2 + float_y), 60, WHITE, shadow_color=fade(cube_color, 0.8), shadow_offset=6)
 
     def _draw_singleplayer(self):
-        panel_w = 400
-        panel_h = 300
+        panel_w = 420
+        panel_h = 330
         panel_x = SCREEN_WIDTH // 2 - panel_w // 2
         panel_y = SCREEN_HEIGHT // 2 - panel_h // 2 - 20
         
@@ -162,24 +167,34 @@ class GameOverScene:
         draw_rectangle_gradient_h(SCREEN_WIDTH // 2 - div_w, int(panel_y + 95 + float_y), div_w, 2, fade(BLANK, 0.0), fade(WHITE, 0.5))
         draw_rectangle_gradient_h(SCREEN_WIDTH // 2, int(panel_y + 95 + float_y), div_w, 2, fade(WHITE, 0.5), fade(BLANK, 0.0))
         
-        # Score
-        score_label = "FINAL SCORE"
-        sl_w = measure_text(score_label, 18)
-        draw_text_shadow(score_label, SCREEN_WIDTH // 2 - sl_w // 2, panel_y + 120, 18, LIGHTGRAY)
+        # Crowns row
+        crown_label = f"♛ Crowns: {self.p1_crowns}  (+{self.p1_crowns * 25} pts)"
+        cl_w = measure_text(crown_label, 18)
+        draw_text_shadow(crown_label, SCREEN_WIDTH // 2 - cl_w // 2, panel_y + 115, 18, Color(255, 220, 80, 255))
         
-        score_text = str(self.p1_score)
+        # Base score
+        base_label = f"Platforms: {self.p1_score}"
+        bl_w = measure_text(base_label, 16)
+        draw_text_shadow(base_label, SCREEN_WIDTH // 2 - bl_w // 2, panel_y + 145, 16, LIGHTGRAY)
+        
+        # Final Score
+        score_label = "TOTAL SCORE"
+        sl_w = measure_text(score_label, 18)
+        draw_text_shadow(score_label, SCREEN_WIDTH // 2 - sl_w // 2, panel_y + 172, 18, LIGHTGRAY)
+        
+        score_text = str(self.p1_final)
         st_size = 55
         st_w = measure_text(score_text, st_size)
-        draw_text_shadow(score_text, SCREEN_WIDTH // 2 - st_w // 2, panel_y + 150, st_size, GOLD)
+        draw_text_shadow(score_text, SCREEN_WIDTH // 2 - st_w // 2, panel_y + 193, st_size, GOLD)
         
         # Best combo
         combo_text = f"Best Combo: x{self.p1_combo}"
         ct_w = measure_text(combo_text, 18)
-        draw_text_shadow(combo_text, SCREEN_WIDTH // 2 - ct_w // 2, panel_y + 220, 18, Color(0, 200, 255, 255))
+        draw_text_shadow(combo_text, SCREEN_WIDTH // 2 - ct_w // 2, panel_y + 265, 18, Color(0, 200, 255, 255))
 
     def _draw_multiplayer(self):
-        panel_w = 600
-        panel_h = 350
+        panel_w = 640
+        panel_h = 380
         panel_x = SCREEN_WIDTH // 2 - panel_w // 2
         panel_y = SCREEN_HEIGHT // 2 - panel_h // 2 - 20
         
@@ -208,20 +223,24 @@ class GameOverScene:
         draw_text_shadow(w_text, SCREEN_WIDTH // 2 - w_w // 2, panel_y + 120, 40, w_color)
         
         # Score comparison
-        col1_x = panel_x + 60
-        col2_x = panel_x + panel_w - 200
+        col1_x = panel_x + 50
+        col2_x = panel_x + panel_w - 240
         row_y = panel_y + 180
         
         draw_text_shadow("PLAYER 1", col1_x, row_y, 18, Color(0, 180, 255, 255))
-        draw_text_shadow(f"Score: {self.p1_score}", col1_x, row_y + 30, 22, WHITE)
-        draw_text_shadow(f"Best Combo: x{self.p1_combo}", col1_x, row_y + 60, 16, GOLD)
+        draw_text_shadow(f"Platforms: {self.p1_score}", col1_x, row_y + 30, 18, WHITE)
+        draw_text_shadow(f"♛ Crowns: {self.p1_crowns}", col1_x, row_y + 58, 16, Color(255, 220, 80, 255))
+        draw_text_shadow(f"TOTAL: {self.p1_final}", col1_x, row_y + 85, 22, GOLD)
+        draw_text_shadow(f"Best Combo: x{self.p1_combo}", col1_x, row_y + 115, 14, SKYBLUE)
         
         draw_text_shadow("PLAYER 2", col2_x, row_y, 18, Color(255, 80, 80, 255))
-        draw_text_shadow(f"Score: {self.p2_score}", col2_x, row_y + 30, 22, WHITE)
-        draw_text_shadow(f"Best Combo: x{self.p2_combo}", col2_x, row_y + 60, 16, GOLD)
+        draw_text_shadow(f"Platforms: {self.p2_score}", col2_x, row_y + 30, 18, WHITE)
+        draw_text_shadow(f"♛ Crowns: {self.p2_crowns}", col2_x, row_y + 58, 16, Color(255, 220, 80, 255))
+        draw_text_shadow(f"TOTAL: {self.p2_final}", col2_x, row_y + 85, 22, GOLD)
+        draw_text_shadow(f"Best Combo: x{self.p2_combo}", col2_x, row_y + 115, 14, SKYBLUE)
         
         # VS divider
         vs_x = SCREEN_WIDTH // 2
-        draw_rectangle(vs_x - 1, row_y, 2, 80, fade(WHITE, 0.15))
+        draw_rectangle(vs_x - 1, row_y, 2, 140, fade(WHITE, 0.15))
         vs_w = measure_text("VS", 20)
-        draw_text_shadow("VS", vs_x - vs_w // 2, row_y + 30, 20, fade(WHITE, 0.4))
+        draw_text_shadow("VS", vs_x - vs_w // 2, row_y + 55, 20, fade(WHITE, 0.4))

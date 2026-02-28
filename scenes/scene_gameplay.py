@@ -400,6 +400,10 @@ class PlayerGameState:
                                     self.player.jump_start_pos = self.player.pos
                                     self.player.jump_progress = 0.0
                                     
+                                    # Penalize score for wrong key (-1 pt, min 0)
+                                    self.player.score = max(0, self.player.score - 1)
+                                    self.combo = 0  # reset combo
+                                    
                                     self.time_left -= 1.5
                                     if self.time_left <= 0:
                                         self.time_left = 0
@@ -461,6 +465,13 @@ class PlayerGameState:
             next_plat.is_swap = False # clear it so they don't trigger it again if jumping in place
             
         self.player.score += platforms_to_skip
+        
+        # Update combo streak
+        self.combo += platforms_to_skip
+        self.combo_timer = 0.0
+        self.combo_display_scale = 1.4
+        if self.combo > self.best_combo:
+            self.best_combo = self.combo
         
         time_added = max(0.3, 1.0 - (self.player.score * 0.03)) * platforms_to_skip
         self.time_left = min(self.MAX_TIME, self.time_left + time_added)
@@ -720,7 +731,7 @@ class PlayerGameState:
         if not self.game_over:
             # --- Top HUD ---
             panel_width = 160
-            panel_height = 80
+            panel_height = 95
             panel_x = 20 + shake_x
             panel_y = 20 + shake_y
             
@@ -733,6 +744,10 @@ class PlayerGameState:
             scale_pop = 1.0 + max(0, 0.5 - (self.MAX_TIME - self.time_left)) if self.game_started else 1.0 
             font_size = int(35 * scale_pop)
             draw_text_shadow(score_text, panel_x + 20, panel_y + 30, font_size, GOLD)
+            
+            # Crown display
+            crown_text = f"♛ x{self.player.crowns}"
+            draw_text_shadow(crown_text, panel_x + 20, panel_y + 74, 14, Color(255, 220, 80, 255))
             
             # Player ID
             pid_text = "P1 (WASD)" if self.is_player1 else "P2 (ARROWS)"
@@ -931,7 +946,17 @@ class GameplayScene:
                 elif p2_dead and not p1_dead:
                     winner = "Player 1"
                 p2_score = self.p2_state.player.score if self.p2_state else 0
-                self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, p2_score, singleplayer=self.singleplayer, p1_color=self.p1_state.player.color, p2_color=self.p2_state.player.color if self.p2_state else None))
+                p2_crowns = self.p2_state.player.crowns if self.p2_state else 0
+                self.game.change_scene(GameOverScene(
+                    self.game, winner,
+                    self.p1_state.player.score, p2_score,
+                    p1_combo=self.p1_state.best_combo, p2_combo=self.p2_state.best_combo if self.p2_state else 0,
+                    singleplayer=self.singleplayer,
+                    p1_color=self.p1_state.player.color,
+                    p2_color=self.p2_state.player.color if self.p2_state else None,
+                    p1_crowns=self.p1_state.player.crowns,
+                    p2_crowns=p2_crowns
+                ))
 
     def draw(self):
         self.p1_state.draw_to_texture()

@@ -72,14 +72,18 @@ class MinigameScene:
         if self.game_over:
             self.end_timer -= dt
             if self.end_timer <= 0:
-                # Add 1000 points to winner
+                gs = self.gameplay_scene
                 if self.winner == 1:
-                    self.gameplay_scene.p1_state.player.score += 1000
+                    gs.p1_state.player.crowns += 1
+                    gs.p1_state.time_left = min(gs.p1_state.MAX_TIME, gs.p1_state.time_left + 2.0)
+                    if gs.p2_state:
+                        gs.p2_state.player.score = max(0, gs.p2_state.player.score - 1)
                 elif self.winner == 2:
-                    self.gameplay_scene.p2_state.player.score += 1000
+                    if gs.p2_state:
+                        gs.p2_state.player.crowns += 1
+                        gs.p2_state.time_left = min(gs.p2_state.MAX_TIME, gs.p2_state.time_left + 2.0)
+                    gs.p1_state.player.score = max(0, gs.p1_state.player.score - 1)
                 
-                # We do not switch to gameover, we resume gameplay
-                # Wait, the problem is they are on platform 10. We should resume them on platform 10 but reset jump state so they continue.
                 self.game.change_scene(self.gameplay_scene)
             return
 

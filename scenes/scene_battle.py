@@ -149,20 +149,20 @@ class BattleScene:
         self.current_arrows = ()
         
     def apply_rewards_and_exit(self):
-        # Winner +2.0s, loser -2.0s
+        gs = self.gameplay_scene
         if self.winner == 1:
-            self.gameplay_scene.p1_state.time_left = min(self.gameplay_scene.p1_state.MAX_TIME, self.gameplay_scene.p1_state.time_left + 1.5)
-            if self.gameplay_scene.p2_state:
-                self.gameplay_scene.p2_state.time_left -= 2.0
-        else:
-            if self.gameplay_scene.p2_state:
-                self.gameplay_scene.p2_state.time_left = min(self.gameplay_scene.p2_state.MAX_TIME, self.gameplay_scene.p2_state.time_left + 1.5)
-            self.gameplay_scene.p1_state.time_left -= 2.0
+            # P1 wins
+            gs.p1_state.player.crowns += 1
+            gs.p1_state.time_left = min(gs.p1_state.MAX_TIME, gs.p1_state.time_left + 2.0)
+            if gs.p2_state:
+                gs.p2_state.player.score = max(0, gs.p2_state.player.score - 1)
+        elif self.winner == 2:
+            # P2 wins (multiplayer only)
+            if gs.p2_state:
+                gs.p2_state.player.crowns += 1
+                gs.p2_state.time_left = min(gs.p2_state.MAX_TIME, gs.p2_state.time_left + 2.0)
+            gs.p1_state.player.score = max(0, gs.p1_state.player.score - 1)
             
-        # Ensure times don't go negative or trigger game over improperly right away
-        self.gameplay_scene.p1_state.time_left = max(-0.1, self.gameplay_scene.p1_state.time_left)
-        if self.gameplay_scene.p2_state:
-            self.gameplay_scene.p2_state.time_left = max(-0.1, self.gameplay_scene.p2_state.time_left)
             
         self.game.change_scene(self.gameplay_scene)
 

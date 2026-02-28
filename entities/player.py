@@ -6,6 +6,7 @@ class Player3D:
         self.size = Vector3(1.0, 1.0, 1.0)
         self.color = RED
         self.score = 0
+        self.crowns = 0  # Awarded for winning minigames/battles; each worth 25 pts
         
         # Jump animation variables
         self.is_jumping = False
