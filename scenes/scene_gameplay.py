@@ -43,8 +43,8 @@ class PlayerGameState:
     def __init__(self, is_player1=True, render_width=None):
         self.is_player1 = is_player1
         self.camera = Camera3D()
-        self.camera.position = Vector3(0.0, 6.0, -6.0)
-        self.camera.target = Vector3(0.0, 0.0, 0.0)
+        self.camera.position = Vector3(0.0, 8.0, -6.0)
+        self.camera.target = Vector3(0.0, 1.0, 0.0)
         self.camera.up = Vector3(0.0, 1.0, 0.0)
         self.camera.fovy = 45.0
         self.camera.projection = CAMERA_PERSPECTIVE
@@ -54,6 +54,7 @@ class PlayerGameState:
         
         self.platforms = []
         self.platforms.append(Platform3D(0.0, 0.0, DIR_UP))
+        self.modifier_active = False  # Set externally by GameplayScene
         
         for _ in range(20):
             self.generate_platform(self.platforms[-1])
@@ -96,6 +97,8 @@ class PlayerGameState:
         # Score milestone tracking
         self.last_milestone = 0
         self.session_best = 0
+        
+        self.triggered_modifier = None
 
     def generate_platform(self, last_plat):
         offset = get_direction_vector(last_plat.direction)
@@ -113,7 +116,12 @@ class PlayerGameState:
             possible_dirs = [DIR_RIGHT, DIR_DOWN, DIR_LEFT]
             
         next_dir = random.choice(possible_dirs)
-        new_plat = Platform3D(x, z, next_dir)
+        
+        modifier = None
+        if not self.modifier_active and self.player.score > 2 and random.random() < 0.15:
+            modifier = "screen_swap"
+            
+        new_plat = Platform3D(x, z, next_dir, modifier=modifier)
         # Color based on score milestone
         palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
         new_plat.color = NEON_PALETTES[palette_idx]
@@ -121,9 +129,6 @@ class PlayerGameState:
 
     def trigger_screen_shake(self, duration=0.3):
         self.screen_shake_timer = duration
-
-    def trigger_screen_flash(self, alpha=0.25):
-        self.screen_flash_alpha = alpha
 
     def update_logic(self, dt):
         # Update particles
@@ -222,6 +227,11 @@ class PlayerGameState:
                 self.player.pos = self.player.jump_target_pos
                 if self.player.pos.y < 0:
                     self.game_over = True
+                else:
+                    # Trigger modifier when the player lands on the platform
+                    landed_plat = self.platforms[self.current_plat_index]
+                    if getattr(landed_plat, 'modifier', None) is not None:
+                        self.triggered_modifier = landed_plat.modifier
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -267,9 +277,6 @@ class PlayerGameState:
                     popup_text = f"+{points}" if self.combo < 3 else f"+{points} x{self.combo}!"
                     self.particles.add_score_popup(popup_text, self.render_width // 2, SCREEN_HEIGHT // 2 - 50, GOLD)
                     
-                    # Screen flash on success
-                    self.trigger_screen_flash(0.15 + min(0.15, self.combo * 0.02))
-                    
                     time_added = max(0.4, 1.5 - (self.player.score * 0.05))
                     self.time_left = min(self.MAX_TIME, self.time_left + time_added)
                     
@@ -281,7 +288,6 @@ class PlayerGameState:
                     new_milestone = self.player.score // 10
                     if new_milestone > self.last_milestone:
                         self.last_milestone = new_milestone
-                        self.trigger_screen_flash(0.4)
                         
                 else:
                     wrong_offset = get_direction_vector(pressed_dir)
@@ -299,19 +305,33 @@ class PlayerGameState:
                     )
 
         # Camera follow
+        
+        # Suavizar el seguimiento de la cámara en Y para evitar saltos bruscos
+        # Mientras jugamos apuntamos a la altura base (2.0), si caemos seguimos al jugador
+        target_y = self.player.pos.y if (self.game_over and self.player.pos.y < 2.0) else 2.0
+        
         target_cam_pos = Vector3(
             self.player.pos.x - 6.0 * (math.sin(self.time_left) * 0.1 if self.game_started and not self.game_over else 0),
-            self.player.pos.y + 6.0,
+            target_y + 6.0,
             self.player.pos.z - 6.0
         ) 
         
-        self.camera.position.x += (target_cam_pos.x - self.camera.position.x) * 5.0 * dt
-        self.camera.position.y += (target_cam_pos.y - self.camera.position.y) * 5.0 * dt
-        self.camera.position.z += (target_cam_pos.z - self.camera.position.z) * 5.0 * dt
+        target_look_y = target_y - 1.0
         
-        self.camera.target.x = self.player.pos.x
-        self.camera.target.y = self.player.pos.y - 1.0
-        self.camera.target.z = self.player.pos.z
+        if getattr(self, 'first_frame', True):
+            self.camera.position = target_cam_pos
+            self.camera.target.x = self.player.pos.x
+            self.camera.target.y = target_look_y
+            self.camera.target.z = self.player.pos.z
+            self.first_frame = False
+        else:
+            self.camera.position.x += (target_cam_pos.x - self.camera.position.x) * 5.0 * dt
+            self.camera.position.y += (target_cam_pos.y - self.camera.position.y) * 5.0 * dt
+            self.camera.position.z += (target_cam_pos.z - self.camera.position.z) * 5.0 * dt
+            
+            self.camera.target.x = self.player.pos.x
+            self.camera.target.y += (target_look_y - self.camera.target.y) * 5.0 * dt
+            self.camera.target.z = self.player.pos.z
 
     def draw_to_texture(self):
         begin_texture_mode(self.render_target)
@@ -358,26 +378,37 @@ class PlayerGameState:
             plat = self.platforms[i]
             dist_from_current = i - self.current_plat_index
             
+            # Color base constante para todas las plataformas
+            base_plat_color = Color(80, 50, 150, 255) # Base violeta
+            if getattr(plat, 'modifier', None) == "screen_swap":
+                pulse_m = (math.sin(t_now * 8.0) + 1.0) / 2.0
+                base_plat_color = Color(0, 255, 255, int(150 + 105 * pulse_m)) # Cyan brillante pulsante
+            
             if i < self.current_plat_index:
                 # Past platforms: fade and sink
                 fade_t = max(0.0, 1.0 - (self.current_plat_index - i) * 0.4)
                 sink = (self.current_plat_index - i) * 0.3
                 pos = Vector3(plat.pos.x, plat.pos.y - sink, plat.pos.z)
-                c = Color(plat.color.r, plat.color.g, plat.color.b, int(255 * fade_t))
+                c = Color(base_plat_color.r, base_plat_color.g, base_plat_color.b, int(255 * fade_t))
                 draw_cube_v(pos, plat.size, c)
             elif i == self.current_plat_index:
                 # Current platform: pulsing glow ring
                 pulse = (math.sin(t_now * 6.0) + 1.0) / 2.0
                 glow_size = Vector3(plat.size.x + 0.3 + pulse * 0.3, 0.1, plat.size.z + 0.3 + pulse * 0.3)
-                glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
+                if getattr(plat, 'modifier', None) == "screen_swap":
+                    face_color = base_plat_color
+                    glow_color = Color(0, 220, 255, int(80 + 80 * pulse))
+                else:
+                    face_color = LIME
+                    glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
                 draw_cube_v(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size, glow_color)
-                draw_cube_v(plat.pos, plat.size, LIME)
+                draw_cube_v(plat.pos, plat.size, face_color)
                 draw_cube_wires_v(plat.pos, plat.size, BLACK)
             else:
                 # Future platforms: gentle bobbing
                 bob = math.sin(t_now * 2.0 + i * 0.7) * 0.15
                 pos = Vector3(plat.pos.x, plat.pos.y + bob, plat.pos.z)
-                draw_cube_v(pos, plat.size, plat.color)
+                draw_cube_v(pos, plat.size, base_plat_color)
                 draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
             if i >= self.current_plat_index:
@@ -516,6 +547,11 @@ class GameplayScene:
         self.game = game
         self.singleplayer = singleplayer
         
+        self.active_modifier = None
+        self.active_modifier_timer = 0.0
+        self.modifier_transition = 0.0   # 0.0 = normal, 1.0 = fully swapped
+        self.modifier_target = 0.0       # target to lerp towards
+        
         if singleplayer:
             self.p1_state = PlayerGameState(is_player1=True, render_width=SCREEN_WIDTH)
             self.p2_state = None
@@ -525,6 +561,32 @@ class GameplayScene:
 
     def update(self, dt):
         self.p1_state.update_logic(dt)
+        
+        if self.active_modifier_timer > 0:
+            self.active_modifier_timer -= dt
+            if self.active_modifier_timer <= 0:
+                self.modifier_target = 0.0  # reverse back
+            
+        p1_mod = getattr(self.p1_state, 'triggered_modifier', None)
+        p2_mod = getattr(self.p2_state, 'triggered_modifier', None) if not self.singleplayer else None
+        
+        if p1_mod or p2_mod:
+            self.active_modifier = p1_mod or p2_mod
+            self.active_modifier_timer = 5.0
+            self.modifier_target = 1.0  # animate towards swapped
+            self.p1_state.triggered_modifier = None
+            if not self.singleplayer:
+                self.p2_state.triggered_modifier = None
+        
+        # Sync modifier_active flag to PlayerGameState so generation is aware
+        modifier_is_active = self.active_modifier_timer > 0
+        self.p1_state.modifier_active = modifier_is_active
+        if not self.singleplayer:
+            self.p2_state.modifier_active = modifier_is_active
+        
+        # Smooth lerp towards target
+        SWAP_SPEED = 3.5
+        self.modifier_transition += (self.modifier_target - self.modifier_transition) * SWAP_SPEED * dt
         
         if self.singleplayer:
             p1_dead = self.p1_state.game_over and not self.p1_state.player.is_jumping
@@ -563,8 +625,11 @@ class GameplayScene:
         clear_background(BLACK)
         
         if self.singleplayer:
-            # Full screen rendering
-            source_rec = Rectangle(0, self.p1_state.render_target.texture.height, self.p1_state.render_target.texture.width, -self.p1_state.render_target.texture.height)
+            # Full screen: slide-lerp the mirror effect via x offset
+            t = self.modifier_transition
+            source_w = self.p1_state.render_target.texture.width
+            source_h = self.p1_state.render_target.texture.height
+            source_rec = Rectangle(source_w * t, source_h, source_w * (1.0 - 2.0 * t), -source_h)
             dest = Rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
             draw_texture_pro(self.p1_state.render_target.texture, source_rec, dest, Vector2(0, 0), 0.0, WHITE)
         else:
@@ -573,10 +638,14 @@ class GameplayScene:
             half_w = self.p1_state.render_width
             source_rec = Rectangle(0, self.p1_state.render_target.texture.height, self.p1_state.render_target.texture.width, -self.p1_state.render_target.texture.height)
             
-            p1_dest = Rectangle(0, 0, half_w, SCREEN_HEIGHT)
+            t = self.modifier_transition
+            # Lerp x positions: p1 slides from 0→half_w, p2 slides from half_w→0
+            p1_x = t * half_w
+            p2_x = half_w + t * (-half_w)
+            p1_dest = Rectangle(p1_x, 0, half_w, SCREEN_HEIGHT)
+            p2_dest = Rectangle(p2_x, 0, half_w, SCREEN_HEIGHT)
+                
             draw_texture_pro(self.p1_state.render_target.texture, source_rec, p1_dest, Vector2(0, 0), 0.0, WHITE)
-            
-            p2_dest = Rectangle(half_w, 0, half_w, SCREEN_HEIGHT)
             draw_texture_pro(self.p2_state.render_target.texture, source_rec, p2_dest, Vector2(0, 0), 0.0, WHITE)
             
             # Animated separator
@@ -589,3 +658,27 @@ class GameplayScene:
                 b = 255
                 draw_rectangle(half_w - 2, y_seg, 4, 4, Color(r, g, b, 200))
             draw_rectangle(half_w - 1, 0, 2, SCREEN_HEIGHT, Color(255, 255, 255, 100))
+        
+        # ─── Countdown warning before modifier expires ───────────────────
+        WARN_TIME = 3.0
+        if 0 < self.active_modifier_timer <= WARN_TIME and self.active_modifier is not None:
+            warn_t = get_time()
+            # Flash speed increases as time runs out
+            flash_speed = 4.0 + (WARN_TIME - self.active_modifier_timer) * 6.0
+            pulse_warn = (math.sin(warn_t * flash_speed) + 1.0) / 2.0
+            border_alpha = int(100 + 155 * pulse_warn)
+            border_thick = 8
+            warn_color = Color(255, 80, 0, border_alpha)
+            # Border around full screen
+            draw_rectangle(0, 0, SCREEN_WIDTH, border_thick, warn_color)
+            draw_rectangle(0, SCREEN_HEIGHT - border_thick, SCREEN_WIDTH, border_thick, warn_color)
+            draw_rectangle(0, 0, border_thick, SCREEN_HEIGHT, warn_color)
+            draw_rectangle(SCREEN_WIDTH - border_thick, 0, border_thick, SCREEN_HEIGHT, warn_color)
+            # Countdown text
+            secs_left = math.ceil(self.active_modifier_timer)
+            countdown_txt = f"¡{secs_left}!"
+            txt_size = 60
+            txt_w = measure_text(countdown_txt, txt_size)
+            txt_alpha = int(180 + 75 * pulse_warn)
+            draw_text(countdown_txt, SCREEN_WIDTH // 2 - txt_w // 2, 20, txt_size, Color(255, 200, 0, txt_alpha))
+
