@@ -59,7 +59,9 @@ class MenuScene:
                 self.phase = 0
                 self.p1_hold_time = 0.0
                 self.p2_hold_time = 0.0
-            
+                
+            # Both ready
+            if self.p1_hold_time >= self.HOLD_REQUIRED and self.p2_hold_time >= self.HOLD_REQUIRED:
                 from scenes.scene_gameplay import GameplayScene
                 self.game.change_scene(GameplayScene(self.game, singleplayer=False))
                 

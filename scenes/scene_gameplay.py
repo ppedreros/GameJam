@@ -1082,7 +1082,7 @@ class PlayerGameState:
             # --- Combo Counter ---
             if self.combo >= 2 and self.game_started:
                 combo_text = f"x{self.combo}"
-                combo_fs = int(50 * self.combo_display_scale)
+                combo_fs = int(40 * self.combo_display_scale)
                 combo_w = measure_text(combo_text, combo_fs)
                 combo_x = self.render_width // 2 - combo_w // 2 + shake_x
                 combo_y = 70 + shake_y
@@ -1096,7 +1096,7 @@ class PlayerGameState:
             
             # --- Combo Milestone Banner ---
             if self.combo_banner_timer > 0 and self.combo_banner_text:
-                bfs = int(80 * self.combo_banner_scale)
+                bfs = int(65 * self.combo_banner_scale)
                 bfs = max(1, bfs)
                 bw = measure_text(self.combo_banner_text, bfs)
                 bx = self.render_width // 2 - bw // 2 + shake_x
