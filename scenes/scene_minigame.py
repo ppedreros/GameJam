@@ -63,6 +63,11 @@ class MinigameScene:
         self.started = False
 
     def update(self, dt):
+        if is_key_pressed(KEY_ESCAPE):
+            # Abort minigame and return to gameplay
+            self.game.change_scene(self.gameplay_scene)
+            return
+            
         if self.countdown > 0:
             self.countdown -= dt
             if self.countdown <= 0:
@@ -295,16 +300,16 @@ class MinigameScene:
             w = measure_text(txt, ts)
             draw_text_shadow(txt, SCREEN_WIDTH//2 - w//2, SCREEN_HEIGHT//2 - ts//2, ts, YELLOW)
             
-            sub = "SURVIVE FOR 1000 POINTS!"
+            sub = "SURVIVE FOR A CROWN & TIME!"
             sw = measure_text(sub, 40)
             draw_text_shadow(sub, SCREEN_WIDTH//2 - sw//2, SCREEN_HEIGHT//2 + ts//2, 40, WHITE)
             
         if self.game_over:
             if self.winner == 1:
-                txt = "PLAYER 1 SURVIVES! +1000"
+                txt = "PLAYER 1 SURVIVES! +1 CROWN & TIME"
                 c = self.p1_color
             elif self.winner == 2:
-                txt = "PLAYER 2 SURVIVES! +1000"
+                txt = "PLAYER 2 SURVIVES! +1 CROWN & TIME"
                 c = self.p2_color
             else:
                 txt = "NO SURVIVORS!"

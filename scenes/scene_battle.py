@@ -48,6 +48,12 @@ class BattleScene:
     CYAN = Color(0, 255, 255, 255)
 
     def update(self, dt):
+        if is_key_pressed(KEY_ESCAPE):
+            # Abort battle and return to gameplay
+            self.game.switch_music("normal")
+            self.game.change_scene(self.gameplay_scene)
+            return
+            
         if self.state == "GET_READY":
             self.state_timer -= dt
             if self.state_timer <= 0:

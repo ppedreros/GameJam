@@ -7,28 +7,39 @@ class MenuScene:
     def __init__(self, game):
         self.game = game
         
-        # Phase 0: Mode selection, Phase 1: Hold to start
+        # Phase 0: Mode selection, Phase 1: Hold to start, Phase 2: How to Play
         self.phase = 0
-        self.selected_mode = 0  # 0 = 1 Player, 1 = 2 Players
+        self.selected_mode = 0  # 0 = 1 Player, 1 = 2 Players, 2 = How to Play
         
         # Hold-to-start state
         self.p1_hold_time = 0.0
         self.p2_hold_time = 0.0
         self.HOLD_REQUIRED = 1.0
+        
+        # Tutorial scrolling
+        self.tutorial_scroll = 0.0
+        self.max_scroll = 500.0
 
     def update(self, dt):
         if self.phase == 0:
             # Mode selection with any directional key
-            if is_key_pressed(KEY_LEFT) or is_key_pressed(KEY_RIGHT) or is_key_pressed(KEY_A) or is_key_pressed(KEY_D):
-                self.selected_mode = 1 - self.selected_mode
+            if is_key_pressed(KEY_LEFT) or is_key_pressed(KEY_A):
+                self.selected_mode = (self.selected_mode - 1) % 3
+            if is_key_pressed(KEY_RIGHT) or is_key_pressed(KEY_D):
+                self.selected_mode = (self.selected_mode + 1) % 3
+                
+            if is_key_pressed(KEY_ESCAPE):
+                close_window() # Manually close since we disabled default esc
             
             if is_key_pressed(KEY_ENTER) or is_key_pressed(KEY_SPACE):
                 if self.selected_mode == 0:
                     # Single player — go straight to gameplay
                     from scenes.scene_gameplay import GameplayScene
                     self.game.change_scene(GameplayScene(self.game, singleplayer=True))
-                else:
+                elif self.selected_mode == 1:
                     self.phase = 1  # Go to hold-to-start
+                elif self.selected_mode == 2:
+                    self.phase = 2  # Go to How to Play
         
         elif self.phase == 1:
             # P1 holds W
@@ -49,10 +60,21 @@ class MenuScene:
                 self.p1_hold_time = 0.0
                 self.p2_hold_time = 0.0
             
-            # Both ready
-            if self.p1_hold_time >= self.HOLD_REQUIRED and self.p2_hold_time >= self.HOLD_REQUIRED:
                 from scenes.scene_gameplay import GameplayScene
                 self.game.change_scene(GameplayScene(self.game, singleplayer=False))
+                
+        elif self.phase == 2:
+            # Scroll with wheel or arrows
+            scroll_speed = 40.0 * 60 * dt
+            if get_mouse_wheel_move() > 0 or is_key_down(KEY_UP):
+                self.tutorial_scroll += scroll_speed
+            elif get_mouse_wheel_move() < 0 or is_key_down(KEY_DOWN):
+                self.tutorial_scroll -= scroll_speed
+                
+            self.tutorial_scroll = max(-self.max_scroll, min(0.0, self.tutorial_scroll))
+            
+            if is_key_pressed(KEY_ESCAPE) or is_key_pressed(KEY_ENTER) or is_key_pressed(KEY_SPACE):
+                self.phase = 0
 
     def draw(self):
         t = get_time()
@@ -85,8 +107,10 @@ class MenuScene:
         
         if self.phase == 0:
             self._draw_mode_selection(t)
-        else:
+        elif self.phase == 1:
             self._draw_hold_to_start(t)
+        elif self.phase == 2:
+            self._draw_how_to_play(t)
         
         # Bottom hint
         hint = "Jump on the correct platform to score!"
@@ -96,7 +120,7 @@ class MenuScene:
 
     def _draw_mode_selection(self, t):
         # Panel
-        panel_w = 700
+        panel_w = 980
         panel_h = 300
         panel_x = SCREEN_WIDTH // 2 - panel_w // 2
         panel_y = 250
@@ -108,17 +132,18 @@ class MenuScene:
         inst_w = measure_text(inst, 32)
         draw_text_shadow(inst, SCREEN_WIDTH // 2 - inst_w // 2, panel_y + 30, 32, Color(220, 220, 240, 255))
         
-        # Two mode buttons
+        # Three mode buttons
         btn_w = 280
         btn_h = 160
-        gap = 50
-        total = btn_w * 2 + gap
+        gap = 40
+        total = btn_w * 3 + gap * 2
         start_x = SCREEN_WIDTH // 2 - total // 2
         btn_y = panel_y + 90
         
         for i, (label, sub_label, icon) in enumerate([
             ("1 PLAYER", "Solo Mode", "WASD"),
-            ("2 PLAYERS", "Split Screen", "WASD + Arrows")
+            ("2 PLAYERS", "Split Screen", "WASD + Arrows"),
+            ("HOW TO PLAY", "Tutorial", "Rules & Tips")
         ]):
             bx = start_x + i * (btn_w + gap)
             selected = (self.selected_mode == i)
@@ -223,3 +248,70 @@ class MenuScene:
         back = "Press ESC to go back"
         bw = measure_text(back, 18)
         draw_text(back, SCREEN_WIDTH // 2 - bw // 2, panel_y + panel_h - 35, 18, Color(130, 130, 160, 180))
+
+    def _draw_how_to_play(self, t):
+        panel_w = 900
+        panel_h = 560
+        panel_x = SCREEN_WIDTH // 2 - panel_w // 2
+        panel_y = 100
+        
+        draw_rounded_panel(panel_x, panel_y, panel_w, panel_h, fade(Color(15, 20, 40, 255), 0.95), shadow_offset=8, roundness=0.1)
+        draw_rounded_panel_outline(panel_x, panel_y, panel_w, panel_h, fade(WHITE, 0.15), segments=10, thickness=2)
+        
+        title = "HOW TO PLAY"
+        draw_text_shadow(title, SCREEN_WIDTH // 2 - measure_text(title, 42) // 2, panel_y + 20, 42, Color(220, 220, 255, 255))
+        
+        # Scissor area
+        content_y = panel_y + 80
+        content_h = panel_h - 130
+        begin_scissor_mode(panel_x, content_y, panel_w, content_h)
+        
+        # Base layout params inside scissor
+        col_x = panel_x + 60
+        y_offset = content_y + int(self.tutorial_scroll)
+        spacing = 55
+        
+        # --- Single Column: Basics & Platforms ---
+        draw_text_shadow("Controls & Platforms", col_x, y_offset, 32, Color(0, 200, 255, 255)); y_offset += spacing
+        draw_text("- WASD or Arrows: Jump to the next platform.", col_x, y_offset, 22, WHITE); y_offset += spacing - 15
+        draw_text("- Match the glowing direction on the platform.", col_x, y_offset, 22, WHITE); y_offset += spacing
+        
+        draw_text("- Double Arrows: Press both keys sequentially", col_x, y_offset, 22, YELLOW); y_offset += 26
+        draw_text("  without making a mistake to gain a time bonus.", col_x, y_offset, 22, YELLOW); y_offset += spacing
+        
+        draw_text("- Red Arrows (Inverted): Press the REVERSE", col_x, y_offset, 22, Color(255, 80, 80, 255)); y_offset += 26
+        draw_text("  direction of what is shown. Gives huge time bonus!", col_x, y_offset, 22, Color(255, 80, 80, 255)); y_offset += spacing
+        
+        # --- Single Column: Traps & Modes ---
+        y_offset += 20
+        draw_text_shadow("Modifiers & Events", col_x, y_offset, 32, Color(255, 150, 50, 255)); y_offset += spacing
+        
+        draw_text("- Dodge Traps: A large warning will appear!", col_x, y_offset, 22, WHITE); y_offset += 26
+        draw_text("  Press the indicated key quickly to avoid penalties.", col_x, y_offset, 22, LIGHTGRAY); y_offset += spacing
+        
+        draw_text("- Darkness: Hides complex arrows, reducing them", col_x, y_offset, 22, Color(180, 100, 255, 255)); y_offset += 26
+        draw_text("  to single arrows, but keeps their time bonus.", col_x, y_offset, 22, Color(180, 100, 255, 255)); y_offset += spacing
+        
+        draw_text("- Battle Tile (Multiplayer): First to land here", col_x, y_offset, 22, ORANGE); y_offset += 26
+        draw_text("  triggers a chaotic rhythm-battle event!", col_x, y_offset, 22, ORANGE); y_offset += spacing
+        
+        draw_text("- Minigame Tile (Multiplayer): Dodge falling", col_x, y_offset, 22, GREEN); y_offset += 26
+        draw_text("  projectiles and survive for crowns and time!", col_x, y_offset, 22, GREEN); y_offset += spacing
+        
+        end_scissor_mode()
+        
+        # Dynamic scroll boundary calculation
+        self.max_scroll = max(0, y_offset - int(self.tutorial_scroll) - (content_y + content_h))
+        
+        # Scroll indicator line
+        draw_rectangle(panel_x + panel_w - 20, content_y, 4, content_h, fade(WHITE, 0.1))
+        if self.max_scroll > 0:
+            handle_h = max(20, int(content_h * (content_h / (content_h + self.max_scroll))))
+            handle_y = content_y + int((content_h - handle_h) * (-self.tutorial_scroll / self.max_scroll))
+            draw_rectangle(panel_x + panel_w - 20, handle_y, 4, handle_h, fade(WHITE, 0.6))
+        
+        # Bottom hint
+        back = "Scroll up/down | Press ESC or ENTER to return"
+        bw = measure_text(back, 22)
+        pulse = (math.sin(t * 3.0) + 1.0) / 2.0
+        draw_text(back, SCREEN_WIDTH // 2 - bw // 2, panel_y + panel_h - 40, 22, Color(150, 150, 170, int(150 + 105 * pulse)))

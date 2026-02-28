@@ -1233,6 +1233,11 @@ class GameplayScene:
         self.p1_state.stun_timer, self.p2_state.stun_timer = self.p2_state.stun_timer, self.p1_state.stun_timer
 
     def update(self, dt):
+        if is_key_pressed(KEY_ESCAPE):
+            from scenes.scene_menu import MenuScene
+            self.game.change_scene(MenuScene(self.game))
+            return
+            
         if self.show_swap_flash > 0:
             self.show_swap_flash -= dt * 2.0
             
