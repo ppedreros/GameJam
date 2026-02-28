@@ -24,6 +24,19 @@ def main():
     return 0
 
 if __name__ == '__main__':
-    if len(sys.argv) >= 2 and isinstance(sys.argv[1], str):
+    if getattr(sys, 'frozen', False):
+        # PyInstaller bundled executable
+        # sys._MEIPASS points to the _internal folder in onedir mode where assets are
+        os.chdir(sys._MEIPASS)
+    else:
+        # Development environment
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if len(sys.argv) >= 2 and isinstance(sys.argv[1], str) and os.path.isdir(sys.argv[1]):
+            pass # We leave the argv[1] chdir below just in case
+        else:
+            os.chdir(base_dir)
+
+    if len(sys.argv) >= 2 and isinstance(sys.argv[1], str) and os.path.isdir(sys.argv[1]):
         os.chdir(sys.argv[1])
+        
     sys.exit(main())
