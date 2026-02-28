@@ -16,7 +16,7 @@ class GameOverScene:
         self.p1_color = p1_color if p1_color else Color(0, 180, 255, 255)
         self.p2_color = p2_color if p2_color else Color(255, 80, 80, 255)
         
-        self.phase = 0
+        self.phase = 1 if singleplayer else 0
         self.enter_time = get_time()
         self.transition_alpha = 1.0
         

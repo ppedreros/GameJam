@@ -133,25 +133,43 @@ class PlayerGameState:
         
         if not self.modifier_active:
             roll = random.random()
-            if self.player.score > 2 and roll < 0.04:
-                modifier = "screen_swap"
-            elif self.player.score > 4 and self.battle_cooldown <= 0:
-                if not getattr(self.parent_scene, 'singleplayer', True) and roll < 0.10:
-                    modifier = "minigame"
-                    self.battle_cooldown = 10
-                elif roll < 0.17:
-                    modifier = "darkness"
-                    self.battle_cooldown = 10
-                elif roll < 0.23:
-                    is_battle = True
-                    self.battle_cooldown = 10
-            elif self.player.score > 5 and roll < 0.21:
-                # Double-arrow: pick a second distinct direction compatible with next_dir
-                other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
-                second_dir = random.choice(other_dirs)
-                directions = tuple(sorted([next_dir, second_dir]))
-            elif self.player.score > 3 and roll < 0.30:
-                is_inverted = True
+            is_singleplayer = getattr(self.parent_scene, 'singleplayer', True)
+            
+            if not is_singleplayer:
+                # Multiplayer Probabilities
+                if self.player.score > 2 and roll < 0.04:
+                    modifier = "screen_swap"
+                elif self.player.score > 4 and self.battle_cooldown <= 0:
+                    if roll < 0.14:
+                        modifier = "minigame"
+                        self.battle_cooldown = 10
+                    elif roll < 0.21:
+                        modifier = "darkness"
+                        self.battle_cooldown = 10
+                    elif roll < 0.27:
+                        is_battle = True
+                        self.battle_cooldown = 10
+                elif self.player.score > 5 and roll < 0.21:
+                    other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
+                    second_dir = random.choice(other_dirs)
+                    directions = tuple(sorted([next_dir, second_dir]))
+                elif self.player.score > 3 and roll < 0.30:
+                    is_inverted = True
+            else:
+                # Singleplayer Probabilities (No Swap, No Minigame, BUT includes Time Battle)
+                if self.player.score > 4 and self.battle_cooldown <= 0:
+                    if roll < 0.08:
+                        modifier = "darkness"
+                        self.battle_cooldown = 8  # Shorter cooldown for singleplayer pace
+                    elif roll < 0.16:
+                        is_battle = True
+                        self.battle_cooldown = 8
+                elif self.player.score > 5 and roll < 0.16:
+                    other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
+                    second_dir = random.choice(other_dirs)
+                    directions = tuple(sorted([next_dir, second_dir]))
+                elif self.player.score > 3 and roll < 0.28:
+                    is_inverted = True
             
         new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle)
         # Color based on score milestone — but special tiles override this above in Platform3D
@@ -800,9 +818,10 @@ class GameplayScene:
         if self.show_swap_flash > 0:
             self.show_swap_flash -= dt * 2.0
             
-        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+        if self.p1_state.just_landed_on_battle or (self.p2_state and self.p2_state.just_landed_on_battle):
             self.p1_state.just_landed_on_battle = False
-            self.p2_state.just_landed_on_battle = False
+            if self.p2_state:
+                self.p2_state.just_landed_on_battle = False
             from scenes.scene_battle import BattleScene
             self.game.change_scene(BattleScene(self.game, self))
             return
@@ -861,7 +880,7 @@ class GameplayScene:
 
         # Check win condition
         p1_dead = self.p1_state.game_over and not self.p1_state.player.is_jumping
-        p2_dead = self.p2_state.game_over and not self.p2_state.player.is_jumping
+        p2_dead = self.p2_state is not None and self.p2_state.game_over and not self.p2_state.player.is_jumping
         
         if p1_dead or p2_dead:
             if not hasattr(self, 'game_over_timer'):
@@ -876,8 +895,8 @@ class GameplayScene:
                     winner = "Player 2"
                 elif p2_dead and not p1_dead:
                     winner = "Player 1"
-                    
-                self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, self.p2_state.player.score, singleplayer=self.singleplayer, p1_color=self.p1_state.player.color, p2_color=self.p2_state.player.color if self.p2_state else None))
+                p2_score = self.p2_state.player.score if self.p2_state else 0
+                self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, p2_score, singleplayer=self.singleplayer, p1_color=self.p1_state.player.color, p2_color=self.p2_state.player.color if self.p2_state else None))
 
     def draw(self):
         self.p1_state.draw_to_texture()
