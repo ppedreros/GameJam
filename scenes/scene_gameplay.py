@@ -135,11 +135,13 @@ class PlayerGameState:
             roll = random.random()
             if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
-            elif self.player.score > 4 and roll < 0.08:
-                modifier = "darkness"
-            elif self.player.score > 6 and roll < 0.14 and self.battle_cooldown <= 0:
-                is_battle = True
-                self.battle_cooldown = 8  # need at least 8 normal platforms before next battle
+            elif self.player.score > 4 and self.battle_cooldown <= 0:
+                if roll < 0.08:
+                    modifier = "darkness"
+                    self.battle_cooldown = 15
+                elif roll < 0.14:
+                    is_battle = True
+                    self.battle_cooldown = 15
             elif self.player.score > 5 and roll < 0.21:
                 # Double-arrow: pick a second distinct direction compatible with next_dir
                 other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
@@ -153,8 +155,10 @@ class PlayerGameState:
         if not is_battle:
             palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
             new_plat.color = NEON_PALETTES[palette_idx]
-        if self.battle_cooldown > 0:
+            
+        if self.battle_cooldown > 0 and modifier != "darkness" and not is_battle:
             self.battle_cooldown -= 1
+            
         self.platforms.append(new_plat)
 
     def trigger_screen_shake(self, duration=0.3):
@@ -272,8 +276,8 @@ class PlayerGameState:
                         mod = getattr(landed_plat, 'modifier', None)
                         if mod is not None:
                             self.triggered_modifier = mod
-                        if getattr(landed_plat, 'is_battle', False):
-                            landed_plat.is_battle = False
+                        if getattr(landed_plat, 'is_battle', False) and not getattr(landed_plat, 'battle_triggered', False):
+                            landed_plat.battle_triggered = True
                             self.just_landed_on_battle = True
                     self.jump_was_advance = False  # reset every landing
             else:
@@ -445,15 +449,20 @@ class PlayerGameState:
             
             # Color base constante para todas las plataformas
             base_plat_color = Color(80, 50, 150, 255) # Base violeta
+            
+            # Darkness effect override (only if not battle or inverted)
+            if self.modifier_active and getattr(self.parent_scene, 'active_modifier', None) == "darkness" and not getattr(plat, 'is_battle', False) and not getattr(plat, 'is_inverted', False):
+                pulse_m = (math.sin(t_now * 5.0) + 1.0) / 2.0
+                base_plat_color = Color(255, 140, 0, int(180 + 75 * pulse_m)) # Naranja fuego
+            
             if getattr(plat, 'is_battle', False):
                 pulse_m = (math.sin(t_now * 10.0) + 1.0) / 2.0
                 base_plat_color = Color(255, int(200 + 55 * pulse_m), 0, 255)  # Oro pulsante
             elif getattr(plat, 'modifier', None) == "screen_swap":
                 pulse_m = (math.sin(t_now * 8.0) + 1.0) / 2.0
                 base_plat_color = Color(0, 255, 255, int(150 + 105 * pulse_m))
-            elif getattr(plat, 'modifier', None) == "darkness":
-                pulse_m = (math.sin(t_now * 5.0) + 1.0) / 2.0
-                base_plat_color = Color(255, 140, 0, int(180 + 75 * pulse_m)) # Naranja fuego
+            elif getattr(plat, 'is_inverted', False):
+                base_plat_color = Color(100, 100, 110, 255)  # Gris
             
             if i < self.current_plat_index:
                 # Past platforms: fade and sink
@@ -461,7 +470,10 @@ class PlayerGameState:
                 sink = (self.current_plat_index - i) * 0.3
                 pos = Vector3(plat.pos.x, plat.pos.y - sink, plat.pos.z)
                 c = Color(base_plat_color.r, base_plat_color.g, base_plat_color.b, int(255 * fade_t))
-                draw_cube_v(pos, plat.size, c)
+                if getattr(plat, 'modifier', None) == "darkness":
+                    draw_cylinder(pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 6, c)
+                else:
+                    draw_cube_v(pos, plat.size, c)
             elif i == self.current_plat_index:
                 # Current platform: pulsing glow ring
                 pulse = (math.sin(t_now * 6.0) + 1.0) / 2.0
@@ -478,25 +490,38 @@ class PlayerGameState:
                 else:
                     face_color = LIME
                     glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
-                draw_cube_v(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size, glow_color)
-                draw_cube_v(plat.pos, plat.size, face_color)
-                draw_cube_wires_v(plat.pos, plat.size, BLACK)
+                
+                if getattr(plat, 'modifier', None) == "darkness":
+                    draw_cylinder(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size.x * 0.6, glow_size.x * 0.6, glow_size.y, 6, glow_color)
+                    draw_cylinder(plat.pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 6, face_color)
+                else:
+                    draw_cube_v(Vector3(plat.pos.x, plat.pos.y - 0.5, plat.pos.z), glow_size, glow_color)
+                    draw_cube_v(plat.pos, plat.size, face_color)
+                    draw_cube_wires_v(plat.pos, plat.size, BLACK)
             else:
                 # Future platforms: gentle bobbing
                 bob = math.sin(t_now * 2.0 + i * 0.7) * 0.15
                 pos = Vector3(plat.pos.x, plat.pos.y + bob, plat.pos.z)
-                draw_cube_v(pos, plat.size, base_plat_color)
-                if getattr(plat, 'is_battle', False):
-                    # Glowing gold wire border for battle tiles
-                    pulse_b = (math.sin(t_now * 10.0) + 1.0) / 2.0
-                    border_size = Vector3(plat.size.x + 0.15 + pulse_b * 0.2, plat.size.y + 0.15, plat.size.z + 0.15 + pulse_b * 0.2)
-                    draw_cube_wires_v(pos, border_size, Color(255, 220, 0, int(180 + 75 * pulse_b)))
-                    draw_cube_wires_v(pos, plat.size, Color(255, 255, 255, 200))
+                
+                if getattr(plat, 'modifier', None) == "darkness":
+                    draw_cylinder(pos, plat.size.x * 0.6, plat.size.x * 0.6, plat.size.y, 6, base_plat_color)
+                    pulse_d = (math.sin(t_now * 8.0) + 1.0) / 2.0
+                    wire_color = Color(255, 140, 0, int(150 + 105 * pulse_d))
+                    draw_cylinder_wires(pos, plat.size.x * 0.6 + 0.05, plat.size.x * 0.6 + 0.05, plat.size.y + 0.05, 6, wire_color)
                 else:
-                    draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
+                    draw_cube_v(pos, plat.size, base_plat_color)
+                    if getattr(plat, 'is_battle', False):
+                        # Glowing gold wire border for battle tiles
+                        pulse_b = (math.sin(t_now * 10.0) + 1.0) / 2.0
+                        border_size = Vector3(plat.size.x + 0.15 + pulse_b * 0.2, plat.size.y + 0.15, plat.size.z + 0.15 + pulse_b * 0.2)
+                        draw_cube_wires_v(pos, border_size, Color(255, 220, 0, int(180 + 75 * pulse_b)))
+                        draw_cube_wires_v(pos, plat.size, Color(255, 255, 255, 200))
+                    else:
+                        draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
-            if i >= self.current_plat_index and not plat.is_battle:
+            if i >= self.current_plat_index:
                 draw_arrow(plat)
+        
         
         # Player shadow blob on ground
         if self.player.pos.y > 0:

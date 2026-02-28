@@ -17,6 +17,7 @@ class Platform3D:
         
         self.modifier = modifier   # "screen_swap", "darkness", etc.
         self.is_battle = is_battle
+        self.battle_triggered = False
         self.is_inverted = is_inverted
         self.is_swap = is_swap
         
