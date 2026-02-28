@@ -33,13 +33,20 @@ class GameOverScene:
             if self.transition_alpha < 0:
                 self.transition_alpha = 0
                 
-        if get_time() - self.enter_time > 0.5 and is_key_pressed(KEY_ENTER):
-            if self.phase == 0 and self.transition_alpha == 0:
-                self.phase = 1
-                self.transition_alpha = 1.0
+        if get_time() - self.enter_time > 0.5:
+            if self.phase == 0:
+                if is_key_pressed(KEY_ENTER) and self.transition_alpha == 0:
+                    self.phase = 1
+                    self.transition_alpha = 1.0
             elif self.phase == 1:
-                from scenes.scene_menu import MenuScene
-                self.game.change_scene(MenuScene(self.game))
+                if is_key_pressed(KEY_SPACE):
+                    # Restart same game mode
+                    from scenes.scene_gameplay import GameplayScene
+                    self.game.change_scene(GameplayScene(self.game, singleplayer=self.singleplayer))
+                elif is_key_pressed(KEY_ENTER):
+                    # Return to menu
+                    from scenes.scene_menu import MenuScene
+                    self.game.change_scene(MenuScene(self.game))
 
     def draw(self):
         # Clear background to prevent 3D elements from ghosting into a mess
@@ -53,19 +60,45 @@ class GameOverScene:
             else:
                 self._draw_multiplayer()
         
-        # Next / Restart button (shared)
-        text3 = "Press ENTER to continue" if self.phase == 0 else "Press ENTER to return to menu"
-        t3_w = measure_text(text3, 20)
-        
-        pulse = (math.sin(get_time() * 6.0) + 1.0) / 2.0
-        btn_w = t3_w + 60
-        btn_h = 44
-        btn_x = SCREEN_WIDTH // 2 - btn_w // 2
-        btn_y = SCREEN_HEIGHT - 100
-        
-        draw_rounded_panel(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.15 + 0.35 * pulse), shadow_offset=0, roundness=0.5)
-        draw_rounded_panel_outline(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.5 + 0.3 * pulse), segments=10, thickness=2)
-        draw_text_shadow(text3, SCREEN_WIDTH // 2 - t3_w // 2, btn_y + 12, 20, RAYWHITE)
+        if self.phase == 0:
+            text_enter = "Press ENTER to continue"
+            t_w = measure_text(text_enter, 20)
+            
+            pulse = (math.sin(get_time() * 6.0) + 1.0) / 2.0
+            btn_w = t_w + 60
+            btn_h = 44
+            btn_x = SCREEN_WIDTH // 2 - btn_w // 2
+            btn_y = SCREEN_HEIGHT - 100
+            
+            draw_rounded_panel(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.15 + 0.35 * pulse), shadow_offset=0, roundness=0.5)
+            draw_rounded_panel_outline(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.5 + 0.3 * pulse), segments=10, thickness=2)
+            draw_text_shadow(text_enter, SCREEN_WIDTH // 2 - t_w // 2, btn_y + 12, 20, RAYWHITE)
+        else:
+            # Phase 1: Restart (SPACE) or Menu (ENTER)
+            text_restart = "SPACE : Play Again"
+            text_menu = "ENTER : Main Menu"
+            
+            tr_w = measure_text(text_restart, 20)
+            tm_w = measure_text(text_menu, 20)
+            
+            pulse = (math.sin(get_time() * 6.0) + 1.0) / 2.0
+            btn_w = max(tr_w, tm_w) + 80
+            btn_h = 40
+            
+            # Left button: Play Again
+            btn1_x = SCREEN_WIDTH // 2 - btn_w - 10
+            btn_y = SCREEN_HEIGHT - 100
+            
+            draw_rounded_panel(btn1_x, btn_y, btn_w, btn_h, fade(LIME, 0.15 + 0.35 * pulse), shadow_offset=0, roundness=0.5)
+            draw_rounded_panel_outline(btn1_x, btn_y, btn_w, btn_h, fade(LIME, 0.5 + 0.3 * pulse), segments=10, thickness=2)
+            draw_text_shadow(text_restart, btn1_x + btn_w // 2 - tr_w // 2, btn_y + 10, 20, RAYWHITE)
+            
+            # Right button: Main Menu
+            btn2_x = SCREEN_WIDTH // 2 + 10
+            
+            draw_rounded_panel(btn2_x, btn_y, btn_w, btn_h, fade(GRAY, 0.3), shadow_offset=0, roundness=0.5)
+            draw_rounded_panel_outline(btn2_x, btn_y, btn_w, btn_h, fade(RAYWHITE, 0.3), segments=10, thickness=2)
+            draw_text_shadow(text_menu, btn2_x + btn_w // 2 - tm_w // 2, btn_y + 10, 20, fade(RAYWHITE, 0.7))
 
         # Smooth Transition Overlay
         if self.transition_alpha > 0:
