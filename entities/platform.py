@@ -24,6 +24,15 @@ class Platform3D:
         self.is_swap = is_swap
         self.is_jump_pad = is_jump_pad
         
+        # Fork platform: shows two arrows; player chooses straight (skip) or detour (trap)
+        self.is_fork = False
+        self.fork_side_dir = -1       # The sideways direction leading to the trap
+        self.fork_trap_effect = None  # Effect that fires if taking the detour
+
+        # Trap platform: sits in chain after a fork, fires effect on landing then continues
+        self.is_trap = False
+        self.trap_effect = None       # "freeze", "dark", "minus_time"
+        
         if is_battle:
             self.color = Color(255, 215, 0, 255)   # gold
         if is_swap:
