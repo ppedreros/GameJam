@@ -54,7 +54,9 @@ class PlayerGameState:
         
         self.platforms = []
         self.platforms.append(Platform3D(0.0, 0.0, DIR_UP))
+        self.triggered_modifier = None
         self.modifier_active = False  # Set externally by GameplayScene
+        self.darkness_timer = 0.0    # local timer managed here
         
         for _ in range(20):
             self.generate_platform(self.platforms[-1])
@@ -69,6 +71,7 @@ class PlayerGameState:
         # Render target — full screen for single player, half for split
         self.render_width = render_width if render_width else int(SCREEN_WIDTH / 2)
         self.render_target = load_render_texture(self.render_width, SCREEN_HEIGHT)
+        self.darkness_render_target = load_render_texture(self.render_width, SCREEN_HEIGHT)
         
         # --- Professional polish state ---
         self.particles = ParticleSystem()
@@ -97,8 +100,6 @@ class PlayerGameState:
         # Score milestone tracking
         self.last_milestone = 0
         self.session_best = 0
-        
-        self.triggered_modifier = None
 
     def generate_platform(self, last_plat):
         offset = get_direction_vector(last_plat.direction)
@@ -118,8 +119,12 @@ class PlayerGameState:
         next_dir = random.choice(possible_dirs)
         
         modifier = None
-        if not self.modifier_active and self.player.score > 2 and random.random() < 0.15:
-            modifier = "screen_swap"
+        if not self.modifier_active:
+            roll = random.random()
+            if self.player.score > 2 and roll < 0.15:
+                modifier = "screen_swap"
+            elif self.player.score > 4 and roll < 0.23:
+                modifier = "darkness"
             
         new_plat = Platform3D(x, z, next_dir, modifier=modifier)
         # Color based on score milestone
@@ -143,6 +148,9 @@ class PlayerGameState:
             self.screen_flash_alpha -= dt * 3.0
             if self.screen_flash_alpha < 0:
                 self.screen_flash_alpha = 0
+        
+        if self.darkness_timer > 0:
+            self.darkness_timer -= dt
         
         if self.screen_shake_timer > 0:
             self.screen_shake_timer -= dt
@@ -230,8 +238,9 @@ class PlayerGameState:
                 else:
                     # Trigger modifier when the player lands on the platform
                     landed_plat = self.platforms[self.current_plat_index]
-                    if getattr(landed_plat, 'modifier', None) is not None:
-                        self.triggered_modifier = landed_plat.modifier
+                    mod = getattr(landed_plat, 'modifier', None)
+                    if mod is not None:
+                        self.triggered_modifier = mod  # route ALL modifiers through GameplayScene
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -382,7 +391,10 @@ class PlayerGameState:
             base_plat_color = Color(80, 50, 150, 255) # Base violeta
             if getattr(plat, 'modifier', None) == "screen_swap":
                 pulse_m = (math.sin(t_now * 8.0) + 1.0) / 2.0
-                base_plat_color = Color(0, 255, 255, int(150 + 105 * pulse_m)) # Cyan brillante pulsante
+                base_plat_color = Color(0, 255, 255, int(150 + 105 * pulse_m))
+            elif getattr(plat, 'modifier', None) == "darkness":
+                pulse_m = (math.sin(t_now * 5.0) + 1.0) / 2.0
+                base_plat_color = Color(255, 140, 0, int(180 + 75 * pulse_m)) # Naranja fuego
             
             if i < self.current_plat_index:
                 # Past platforms: fade and sink
@@ -398,6 +410,9 @@ class PlayerGameState:
                 if getattr(plat, 'modifier', None) == "screen_swap":
                     face_color = base_plat_color
                     glow_color = Color(0, 220, 255, int(80 + 80 * pulse))
+                elif getattr(plat, 'modifier', None) == "darkness":
+                    face_color = base_plat_color
+                    glow_color = Color(255, 100, 0, int(80 + 80 * pulse))
                 else:
                     face_color = LIME
                     glow_color = Color(100, 255, 100, int(60 + 40 * pulse))
@@ -439,6 +454,75 @@ class PlayerGameState:
         self.particles.draw_3d()
 
         end_mode_3d()
+        
+        # --- Darkness modifier overlay ---
+        if self.darkness_timer > 0:
+            FADE_TIME = 0.8
+            if self.darkness_timer > 6.0 - FADE_TIME:
+                alpha_ratio = (6.0 - self.darkness_timer) / FADE_TIME
+            elif self.darkness_timer < FADE_TIME:
+                alpha_ratio = self.darkness_timer / FADE_TIME
+            else:
+                alpha_ratio = 1.0
+            
+            # Soft base tint (not fully opaque - gives a smoky feel instead of hard black)
+            base_alpha = int(190 * alpha_ratio)
+            draw_rectangle(0, 0, self.render_width, SCREEN_HEIGHT, Color(5, 5, 18, base_alpha))
+            
+            # Vignette: dark gradients from each edge to create soft falloff
+            vign_layers = 14
+            for layer in range(vign_layers):
+                progress = layer / vign_layers
+                layer_alpha = int(alpha_ratio * 180 * (1.0 - progress) ** 2)
+                thickness = int(self.render_width * 0.4 * (1.0 - progress))
+                # Left edge
+                draw_rectangle_gradient_h(0, 0, thickness, SCREEN_HEIGHT,
+                    Color(0, 0, 12, layer_alpha), Color(0, 0, 12, 0))
+                # Right edge
+                draw_rectangle_gradient_h(self.render_width - thickness, 0, thickness, SCREEN_HEIGHT,
+                    Color(0, 0, 12, 0), Color(0, 0, 12, layer_alpha))
+                # Top edge
+                draw_rectangle_gradient_v(0, 0, self.render_width, int(SCREEN_HEIGHT * 0.4 * (1.0 - progress)),
+                    Color(0, 0, 12, layer_alpha), Color(0, 0, 12, 0))
+                # Bottom edge
+                h = int(SCREEN_HEIGHT * 0.4 * (1.0 - progress))
+                draw_rectangle_gradient_v(0, SCREEN_HEIGHT - h, self.render_width, h,
+                    Color(0, 0, 12, 0), Color(0, 0, 12, layer_alpha))
+            
+            # Second 3D pass in a dedicated render texture to avoid z-fighting (fresh depth buffer)
+            begin_texture_mode(self.darkness_render_target)
+            clear_background(Color(0, 0, 0, 0))  # transparent
+            begin_mode_3d(self.camera)
+            curr_plat = self.platforms[self.current_plat_index]
+            pulse = (math.sin(t_now * 6.0) + 1.0) / 2.0
+            glow_size = Vector3(curr_plat.size.x + 0.4 + pulse * 0.4, 0.12, curr_plat.size.z + 0.4 + pulse * 0.4)
+            draw_cube_v(Vector3(curr_plat.pos.x, curr_plat.pos.y - 0.5, curr_plat.pos.z), glow_size, Color(100, 255, 100, int(80 + 60 * pulse)))
+            draw_cube_v(curr_plat.pos, curr_plat.size, LIME)
+            draw_cube_wires_v(curr_plat.pos, curr_plat.size, BLACK)
+            draw_arrow(curr_plat)
+            if self.current_plat_index + 1 < len(self.platforms):
+                next_plat = self.platforms[self.current_plat_index + 1]
+                bob = math.sin(t_now * 2.0) * 0.15
+                npos = Vector3(next_plat.pos.x, next_plat.pos.y + bob, next_plat.pos.z)
+                draw_cube_v(npos, next_plat.size, Color(80, 50, 150, 255))
+                draw_cube_wires_v(npos, next_plat.size, Color(200, 200, 255, 160))
+                draw_arrow(next_plat)
+            sx = 1.0 / max(0.5, self.player_squash)
+            sy = self.player_squash
+            psize = Vector3(self.player.size.x * sx, self.player.size.y * sy, self.player.size.z * sx)
+            draw_cube_v(self.player.pos, psize, self.player.color)
+            draw_cube_wires_v(self.player.pos, psize, Color(255, 255, 255, 80))
+            end_mode_3d()
+            end_texture_mode()
+            
+            # 'end_texture_mode' exits ALL texture mode - must re-enter main render target
+            # before compositing the darkness texture on top of it
+            begin_texture_mode(self.render_target)
+            drk_src = Rectangle(0, self.darkness_render_target.texture.height,
+                                self.darkness_render_target.texture.width,
+                                -self.darkness_render_target.texture.height)
+            drk_dst = Rectangle(0, 0, self.render_width, SCREEN_HEIGHT)
+            draw_texture_pro(self.darkness_render_target.texture, drk_src, drk_dst, Vector2(0, 0), 0.0, WHITE)
 
         # --- 2D Overlays (with screen shake offset) ---
         shake_x = int(self.screen_shake_x)
@@ -571,12 +655,20 @@ class GameplayScene:
         p2_mod = getattr(self.p2_state, 'triggered_modifier', None) if not self.singleplayer else None
         
         if p1_mod or p2_mod:
-            self.active_modifier = p1_mod or p2_mod
-            self.active_modifier_timer = 5.0
-            self.modifier_target = 1.0  # animate towards swapped
+            triggered = p1_mod or p2_mod
+            self.active_modifier = triggered
+            self.active_modifier_timer = 6.0
+            if triggered == "screen_swap":
+                self.modifier_target = 1.0
             self.p1_state.triggered_modifier = None
             if not self.singleplayer:
                 self.p2_state.triggered_modifier = None
+        
+        # Sync darkness_timer to both states so both screens go dark
+        darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
+        self.p1_state.darkness_timer = darkness_t
+        if not self.singleplayer:
+            self.p2_state.darkness_timer = darkness_t
         
         # Sync modifier_active flag to PlayerGameState so generation is aware
         modifier_is_active = self.active_modifier_timer > 0
