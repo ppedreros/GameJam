@@ -134,7 +134,12 @@ class GameOverScene:
         # Draw Halo (an open ring above the head)
         glow = (math.sin(t * 8.0) + 1.0) / 2.0
         halo_y = bob + 1.5 + glow * 0.2
-        halo_color = Color(cube_color.r, cube_color.g, cube_color.b, int(150 + 100 * glow))
+        if isinstance(cube_color, tuple):
+            r, g, b = cube_color[0], cube_color[1], cube_color[2]
+        else:
+            r, g, b = cube_color.r, cube_color.g, cube_color.b
+            
+        halo_color = Color(r, g, b, int(150 + 100 * glow))
         draw_cylinder_wires(Vector3(0, halo_y, 0), 1.5, 1.5, 0.1, 12, halo_color)
         draw_cylinder_wires(Vector3(0, halo_y, 0), 1.6, 1.6, 0.1, 12, halo_color)  # Double wire for thickness
         

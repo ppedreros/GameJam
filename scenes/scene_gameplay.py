@@ -352,6 +352,16 @@ class PlayerGameState:
                 self.trap_dodge_pending = False
                 self._apply_trap_effect_now(self.trap_dodge_effect)
         
+        # --- Auto timer drain: forces both players to keep playing ---
+        # Time drains passively; successful jumps restore it. Idle players lose eventually.
+        is_mp = not getattr(self.parent_scene, 'singleplayer', True)
+        drain_rate = 0.8 if is_mp else 1.0
+        if self.game_started and not self.game_over:
+            self.time_left -= dt * drain_rate
+            if self.time_left <= 0:
+                self.time_left = 0
+                self.game_over = True
+        
         # Detect landing
         self.just_landed = False
         if self.was_jumping and not self.player.is_jumping and not self.game_over:
@@ -1089,7 +1099,7 @@ class PlayerGameState:
                 bfs = max(1, bfs)
                 bw = measure_text(self.combo_banner_text, bfs)
                 bx = self.render_width // 2 - bw // 2 + shake_x
-                by = self.render_height // 2 - bfs - 60 + shake_y if hasattr(self, 'render_height') else SCREEN_HEIGHT // 2 - bfs - 60 + shake_y
+                by = 65 + shake_y
                 
                 # Determine colour by milestone
                 if "INSANE" in self.combo_banner_text:
@@ -1110,13 +1120,13 @@ class PlayerGameState:
                 draw_rounded_panel(
                     bx - panel_pad, by - 8,
                     bw + panel_pad * 2, bfs + 20,
-                    Color(0, 0, 0, int(200 * alpha_ratio)),
+                    Color(0, 0, 0, int(110 * alpha_ratio)),
                     shadow_offset=8, roundness=0.4
                 )
                 draw_rounded_panel_outline(
                     bx - panel_pad, by - 8,
                     bw + panel_pad * 2, bfs + 20,
-                    Color(banner_col.r, banner_col.g, banner_col.b, int(220 * alpha_ratio)),
+                    Color(banner_col.r, banner_col.g, banner_col.b, int(140 * alpha_ratio)),
                     segments=12, thickness=3
                 )
                 draw_text_shadow(
@@ -1226,8 +1236,8 @@ class GameplayScene:
             self.show_swap_flash -= dt * 2.0
             
         p1_battle = self.p1_state.just_landed_on_battle
-        p2_battle = (self.p2_state and self.p2_state.just_landed_on_battle if self.p2_state else False
-        if p1_battle or p2_battle):
+        p2_battle = self.p2_state.just_landed_on_battle if self.p2_state else False
+        if p1_battle or p2_battle:
             self.p1_state.just_landed_on_battle = False
             if self.p2_state:
                 self.p2_state.just_landed_on_battle = False
@@ -1236,6 +1246,12 @@ class GameplayScene:
             self.game.change_scene(BattleScene(self.game, self))
             return
             
+        # --- Sync game_started (if one moves, both timers start) ---
+        if self.p2_state:
+            if self.p1_state.game_started or self.p2_state.game_started:
+                self.p1_state.game_started = True
+                self.p2_state.game_started = True
+
         self.p1_state.update_logic(dt)
         if self.p2_state:
             self.p2_state.update_logic(dt)
@@ -1310,28 +1326,8 @@ class GameplayScene:
         p2_dead = self.p2_state is not None and self.p2_state.game_over and not self.p2_state.player.is_jumping
         
         if p1_dead or p2_dead:
-            from scenes.scene_gameover import GameOverScene
-            
-            winner = "Draw"
-            if p1_dead and not p2_dead:
-                winner = "Player 2"
-            elif p2_dead and not p1_dead:
-                winner = "Player 1"
-            
-            # Win jingle + music reset
-            self.game.play_win_effect()
-            
-            p2_score = self.p2_state.player.score if self.p2_state else 0
-            p2_combo = self.p2_state.best_combo if self.p2_state else 0
-                
-            self.game.change_scene(GameOverScene(
-                self.game, winner,
-                self.p1_state.player.score, p2_score,
-                p1_combo=self.p1_state.best_combo, p2_combo=p2_combo
-            ))
             if not hasattr(self, 'game_over_timer'):
                 self.game_over_timer = 0.0
-                
             self.game_over_timer += dt
             if self.game_over_timer > 0.6:
                 from scenes.scene_gameover import GameOverScene
