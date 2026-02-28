@@ -624,11 +624,14 @@ class PlayerGameState:
                 draw_cube_v(npos, next_plat.size, Color(80, 50, 150, 255))
                 draw_cube_wires_v(npos, next_plat.size, Color(200, 200, 255, 160))
                 draw_arrow(next_plat)
-            sx = 1.0 / max(0.5, self.player_squash)
-            sy = self.player_squash
-            psize = Vector3(self.player.size.x * sx, self.player.size.y * sy, self.player.size.z * sx)
-            draw_cube_v(self.player.pos, psize, self.player.color)
-            draw_cube_wires_v(self.player.pos, psize, Color(255, 255, 255, 80))
+                
+            if not self.game_over:
+                sx = 1.0 / max(0.5, self.player_squash)
+                sy = self.player_squash
+                psize = Vector3(self.player.size.x * sx, self.player.size.y * sy, self.player.size.z * sx)
+                draw_cube_v(self.player.pos, psize, self.player.color)
+                draw_cube_wires_v(self.player.pos, psize, Color(255, 255, 255, 80))
+                
             end_mode_3d()
             end_texture_mode()
             
@@ -861,15 +864,20 @@ class GameplayScene:
         p2_dead = self.p2_state.game_over and not self.p2_state.player.is_jumping
         
         if p1_dead or p2_dead:
-            from scenes.scene_gameover import GameOverScene
-            
-            winner = "Draw"
-            if p1_dead and not p2_dead:
-                winner = "Player 2"
-            elif p2_dead and not p1_dead:
-                winner = "Player 1"
+            if not hasattr(self, 'game_over_timer'):
+                self.game_over_timer = 0.0
                 
-            self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, self.p2_state.player.score))
+            self.game_over_timer += dt
+            if self.game_over_timer > 0.6:
+                from scenes.scene_gameover import GameOverScene
+                
+                winner = "Draw"
+                if p1_dead and not p2_dead:
+                    winner = "Player 2"
+                elif p2_dead and not p1_dead:
+                    winner = "Player 1"
+                    
+                self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, self.p2_state.player.score, singleplayer=self.singleplayer, p1_color=self.p1_state.player.color, p2_color=self.p2_state.player.color if self.p2_state else None))
 
     def draw(self):
         self.p1_state.draw_to_texture()

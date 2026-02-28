@@ -4,7 +4,7 @@ from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 from utils.draw_utils import draw_rounded_panel, draw_rounded_panel_outline, draw_text_shadow
 
 class GameOverScene:
-    def __init__(self, game, winner, p1_score, p2_score, p1_combo=0, p2_combo=0, singleplayer=False):
+    def __init__(self, game, winner, p1_score, p2_score, p1_combo=0, p2_combo=0, singleplayer=False, p1_color=None, p2_color=None):
         self.game = game
         self.winner = winner
         self.p1_score = p1_score
@@ -12,24 +12,49 @@ class GameOverScene:
         self.p1_combo = p1_combo
         self.p2_combo = p2_combo
         self.singleplayer = singleplayer
+        
+        self.p1_color = p1_color if p1_color else Color(0, 180, 255, 255)
+        self.p2_color = p2_color if p2_color else Color(255, 80, 80, 255)
+        
+        self.phase = 0
         self.enter_time = get_time()
+        self.transition_alpha = 1.0
+        
+        self.camera = Camera3D()
+        self.camera.position = Vector3(0.0, 3.0, -8.0)
+        self.camera.target = Vector3(0.0, 0.0, 0.0)
+        self.camera.up = Vector3(0.0, 1.0, 0.0)
+        self.camera.fovy = 45.0
+        self.camera.projection = CAMERA_PERSPECTIVE
 
     def update(self, dt):
+        if self.transition_alpha > 0:
+            self.transition_alpha -= dt * 2.0
+            if self.transition_alpha < 0:
+                self.transition_alpha = 0
+                
         if get_time() - self.enter_time > 0.5 and is_key_pressed(KEY_ENTER):
-            from scenes.scene_menu import MenuScene
-            self.game.change_scene(MenuScene(self.game))
+            if self.phase == 0 and self.transition_alpha == 0:
+                self.phase = 1
+                self.transition_alpha = 1.0
+            elif self.phase == 1:
+                from scenes.scene_menu import MenuScene
+                self.game.change_scene(MenuScene(self.game))
 
     def draw(self):
-        # Frosted glass overlay
-        draw_rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, fade(BLACK, 0.75))
+        # Clear background to prevent 3D elements from ghosting into a mess
+        clear_background(Color(15, 20, 35, 255))
         
-        if self.singleplayer:
-            self._draw_singleplayer()
+        if self.phase == 0:
+            self._draw_winner_screen()
         else:
-            self._draw_multiplayer()
+            if self.singleplayer:
+                self._draw_singleplayer()
+            else:
+                self._draw_multiplayer()
         
-        # Restart button (shared)
-        text3 = "Press ENTER to return to menu"
+        # Next / Restart button (shared)
+        text3 = "Press ENTER to continue" if self.phase == 0 else "Press ENTER to return to menu"
         t3_w = measure_text(text3, 20)
         
         pulse = (math.sin(get_time() * 6.0) + 1.0) / 2.0
@@ -41,6 +66,48 @@ class GameOverScene:
         draw_rounded_panel(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.15 + 0.35 * pulse), shadow_offset=0, roundness=0.5)
         draw_rounded_panel_outline(btn_x, btn_y, btn_w, btn_h, fade(YELLOW, 0.5 + 0.3 * pulse), segments=10, thickness=2)
         draw_text_shadow(text3, SCREEN_WIDTH // 2 - t3_w // 2, btn_y + 12, 20, RAYWHITE)
+
+        # Smooth Transition Overlay
+        if self.transition_alpha > 0:
+            draw_rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, fade(BLACK, self.transition_alpha))
+
+    def _draw_winner_screen(self):
+        t = get_time()
+        
+        # 3D Rotating Cube
+        begin_mode_3d(self.camera)
+        bob = math.sin(t * 3.0) * 0.5
+        cube_pos = Vector3(0.0, bob, 0.0)
+        
+        if self.singleplayer:
+            cube_color = self.p1_color
+            win_text = "GAME OVER"
+        else:
+            if self.winner == "Player 1":
+                cube_color = self.p1_color
+                win_text = "PLAYER 1 WINS!"
+            elif self.winner == "Player 2":
+                cube_color = self.p2_color
+                win_text = "PLAYER 2 WINS!"
+            else:
+                cube_color = GRAY
+                win_text = "IT'S A DRAW!"
+                
+        # Draw Halo (an open ring above the head)
+        glow = (math.sin(t * 8.0) + 1.0) / 2.0
+        halo_y = bob + 1.5 + glow * 0.2
+        halo_color = Color(cube_color.r, cube_color.g, cube_color.b, int(150 + 100 * glow))
+        draw_cylinder_wires(Vector3(0, halo_y, 0), 1.5, 1.5, 0.1, 12, halo_color)
+        draw_cylinder_wires(Vector3(0, halo_y, 0), 1.6, 1.6, 0.1, 12, halo_color)  # Double wire for thickness
+        
+        draw_cube_v(cube_pos, Vector3(2.0, 2.0, 2.0), cube_color)
+        draw_cube_wires_v(cube_pos, Vector3(2.0, 2.0, 2.0), WHITE)
+        end_mode_3d()
+        
+        # 2D Text over the 3D scene
+        float_y = math.sin(t * 2.5) * 5.0
+        t1_w = measure_text(win_text, 60)
+        draw_text_shadow(win_text, SCREEN_WIDTH // 2 - t1_w // 2, int(SCREEN_HEIGHT * 0.2 + float_y), 60, WHITE, shadow_color=fade(cube_color, 0.8), shadow_offset=6)
 
     def _draw_singleplayer(self):
         panel_w = 400
