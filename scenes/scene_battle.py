@@ -3,7 +3,7 @@ import random
 from pyray import *
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT, DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT
 from utils.draw_utils import draw_rounded_panel, draw_rounded_panel_outline, draw_text_shadow
-from systems.input_handler import get_p1_pressed_direction, get_p2_pressed_direction, get_p1_pressed_directions, get_p2_pressed_directions
+from systems.input_handler import get_p1_pressed_direction, get_p2_pressed_direction, get_p1_pressed_directions, get_p2_pressed_directions, get_p1_held_directions, get_p2_held_directions
 
 class BattleScene:
     def __init__(self, game, gameplay_scene):
@@ -65,8 +65,15 @@ class BattleScene:
                     self.current_arrows = (random.choice([DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT]),)
                 
         elif self.state == "SHOWING_ARROW":
-            p1_dirs = get_p1_pressed_directions()
-            p2_dirs = get_p2_pressed_directions()
+            is_multi = len(self.current_arrows) > 1
+            
+            if is_multi:
+                # Use held keys for double-arrow combos: no need to hit both on exact same frame
+                p1_dirs = get_p1_held_directions()
+                p2_dirs = get_p2_held_directions()
+            else:
+                p1_dirs = get_p1_pressed_directions()
+                p2_dirs = get_p2_pressed_directions()
             
             p1_win = False
             p2_win = False
@@ -140,21 +147,27 @@ class BattleScene:
         
         # Grid background
         t = get_time()
-        for i in range(0, SCREEN_WIDTH, 100):
-            draw_line(i, 0, int(i + math.sin(t*2)*20), SCREEN_HEIGHT, fade(self.MAGENTA, 0.2))
-        for i in range(0, SCREEN_HEIGHT, 100):
-            draw_line(0, i, SCREEN_WIDTH, int(i + math.cos(t*2)*20), fade(self.CYAN, 0.2))
+        for i in range(0, SCREEN_WIDTH, 80):
+            draw_line(i, 0, int(i + math.sin(t*2)*25), SCREEN_HEIGHT, fade(self.MAGENTA, 0.35))
+        for i in range(0, SCREEN_HEIGHT, 80):
+            draw_line(0, i, SCREEN_WIDTH, int(i + math.cos(t*2)*25), fade(self.CYAN, 0.35))
             
         draw_text_shadow("BATTLE START!", SCREEN_WIDTH//2 - measure_text("BATTLE START!", 60)//2, 50, 60, GOLD)
         
         # Scores
-        draw_rounded_panel(100, 100, 200, 100, fade(BLUE, 0.5), shadow_offset=6, roundness=0.2)
-        draw_text_shadow("P1 (WASD)", 130, 110, 20, WHITE)
-        draw_text_shadow(f"{self.p1_score}/{self.winning_score}", 160, 140, 40, GOLD)
+        # P1 card
+        draw_rounded_panel(80, 90, 230, 110, Color(0, 30, 120, 240), shadow_offset=8, roundness=0.2)
+        draw_rounded_panel_outline(80, 90, 230, 110, Color(0, 150, 255, 255), segments=12, thickness=4)
+        draw_text_shadow("P1  WASD", 110, 102, 22, Color(0, 200, 255, 255), shadow_offset=3)
+        score_txt = f"{self.p1_score}  /  {self.winning_score}"
+        draw_text_shadow(score_txt, 145, 135, 44, GOLD, shadow_offset=3)
         
-        draw_rounded_panel(SCREEN_WIDTH - 300, 100, 200, 100, fade(RED, 0.5), shadow_offset=6, roundness=0.2)
-        draw_text_shadow("P2 (Arrows)", SCREEN_WIDTH - 270, 110, 20, WHITE)
-        draw_text_shadow(f"{self.p2_score}/{self.winning_score}", SCREEN_WIDTH - 240, 140, 40, GOLD)
+        # P2 card
+        draw_rounded_panel(SCREEN_WIDTH - 310, 90, 230, 110, Color(120, 10, 10, 240), shadow_offset=8, roundness=0.2)
+        draw_rounded_panel_outline(SCREEN_WIDTH - 310, 90, 230, 110, Color(255, 80, 80, 255), segments=12, thickness=4)
+        draw_text_shadow("P2  ARROWS", SCREEN_WIDTH - 290, 102, 22, Color(255, 120, 120, 255), shadow_offset=3)
+        score_txt2 = f"{self.p2_score}  /  {self.winning_score}"
+        draw_text_shadow(score_txt2, SCREEN_WIDTH - 270, 135, 44, GOLD, shadow_offset=3)
         
         # Main display logic
         center_x = SCREEN_WIDTH // 2
@@ -179,15 +192,24 @@ class BattleScene:
                  arrow_col = self.get_arrow_color(arrow_val)
                  
                  # Pop effect
-                 scale = 1.0 + math.sin(t * 20) * 0.1
-                 font_size = int(100 * scale)
+                 scale = 1.0 + math.sin(t * 20) * 0.12
+                 font_size = int(110 * scale)
                  
                  ax = int(start_x + i * spacing)
                  
-                 draw_rounded_panel(ax - 120, center_y - 120, 240, 240, fade(BLACK, 0.8), shadow_offset=10, roundness=0.3)
-                 draw_rounded_panel_outline(ax - 120, center_y - 120, 240, 240, arrow_col, segments=12, thickness=6)
+                 # Card: dark opaque background with thick colored border
+                 draw_rounded_panel(ax - 130, center_y - 130, 260, 260, Color(10, 5, 25, 245), shadow_offset=14, roundness=0.25)
+                 draw_rounded_panel_outline(ax - 130, center_y - 130, 260, 260, arrow_col, segments=12, thickness=8)
+                 # Inner glow line
+                 glow_pulse = (math.sin(t * 15) + 1.0) / 2.0
+                 draw_rounded_panel_outline(ax - 122, center_y - 122, 244, 244,
+                     Color(arrow_col[0], arrow_col[1], arrow_col[2], int(60 + 80 * glow_pulse)), segments=12, thickness=4)
                  
-                 draw_text_shadow(arrow_str, ax - measure_text(arrow_str, font_size)//2, center_y - font_size//2, font_size, arrow_col)
+                 # Arrow text with shadow for contrast
+                 draw_text_shadow(arrow_str,
+                     ax - measure_text(arrow_str, font_size)//2,
+                     center_y - font_size//2,
+                     font_size, WHITE, shadow_color=Color(arrow_col[0]//2, arrow_col[1]//2, arrow_col[2]//2, 220), shadow_offset=5)
              
         elif self.state == "POINT_SCORED":
              scale = 1.0 + (0.5 - self.point_msg_timer) * 2.0

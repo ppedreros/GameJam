@@ -58,6 +58,7 @@ class PlayerGameState:
         self.triggered_modifier = None
         self.modifier_active = False  # Set externally by GameplayScene
         self.darkness_timer = 0.0    # local timer managed here
+        self.battle_cooldown = 0     # platforms until next battle tile is allowed
         
         for _ in range(20):
             self.generate_platform(self.platforms[-1])
@@ -70,6 +71,7 @@ class PlayerGameState:
         self.JUMP_DURATION = 0.2
         self.just_landed_on_battle = False
         self.stun_timer = 0.0
+        self.jump_was_advance = False  # True only for successful forward jumps
         
         # Render target — full screen for single player, half for split
         self.render_width = render_width if render_width else int(SCREEN_WIDTH / 2)
@@ -103,6 +105,7 @@ class PlayerGameState:
         # Score milestone tracking
         self.last_milestone = 0
         self.session_best = 0
+        self.battle_cooldown = 0  # platforms until next battle tile is allowed
 
     def generate_platform(self, last_plat):
         # Use first direction for positional offset
@@ -125,19 +128,33 @@ class PlayerGameState:
         
         modifier = None
         is_inverted = False
+        is_battle = False
+        directions = (next_dir,)
+        
         if not self.modifier_active:
             roll = random.random()
             if self.player.score > 2 and roll < 0.04:
                 modifier = "screen_swap"
             elif self.player.score > 4 and roll < 0.08:
                 modifier = "darkness"
-            elif self.player.score > 3 and roll < 0.20:
+            elif self.player.score > 6 and roll < 0.14 and self.battle_cooldown <= 0:
+                is_battle = True
+                self.battle_cooldown = 8  # need at least 8 normal platforms before next battle
+            elif self.player.score > 5 and roll < 0.21:
+                # Double-arrow: pick a second distinct direction compatible with next_dir
+                other_dirs = [d for d in [DIR_UP, DIR_RIGHT, DIR_DOWN, DIR_LEFT] if d != next_dir]
+                second_dir = random.choice(other_dirs)
+                directions = tuple(sorted([next_dir, second_dir]))
+            elif self.player.score > 3 and roll < 0.30:
                 is_inverted = True
             
-        new_plat = Platform3D(x, z, (next_dir,), modifier=modifier, is_inverted=is_inverted)
-        # Color based on score milestone
-        palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
-        new_plat.color = NEON_PALETTES[palette_idx]
+        new_plat = Platform3D(x, z, directions, modifier=modifier, is_inverted=is_inverted, is_battle=is_battle)
+        # Color based on score milestone — but special tiles override this above in Platform3D
+        if not is_battle:
+            palette_idx = (self.player.score // 10) % len(NEON_PALETTES)
+            new_plat.color = NEON_PALETTES[palette_idx]
+        if self.battle_cooldown > 0:
+            self.battle_cooldown -= 1
         self.platforms.append(new_plat)
 
     def trigger_screen_shake(self, duration=0.3):
@@ -249,14 +266,16 @@ class PlayerGameState:
                 if self.player.pos.y < 0:
                     self.game_over = True
                 else:
-                    # Trigger modifier when the player lands on the platform
-                    landed_plat = self.platforms[self.current_plat_index]
-                    mod = getattr(landed_plat, 'modifier', None)
-                    if mod is not None:
-                        self.triggered_modifier = mod  # route ALL modifiers through GameplayScene
-                    if getattr(landed_plat, 'is_battle', False):
-                        landed_plat.is_battle = False
-                        self.just_landed_on_battle = True
+                    # Only trigger modifiers/battle on a real forward jump, not a penalty bounce
+                    if self.jump_was_advance:
+                        landed_plat = self.platforms[self.current_plat_index]
+                        mod = getattr(landed_plat, 'modifier', None)
+                        if mod is not None:
+                            self.triggered_modifier = mod
+                        if getattr(landed_plat, 'is_battle', False):
+                            landed_plat.is_battle = False
+                            self.just_landed_on_battle = True
+                    self.jump_was_advance = False  # reset every landing
             else:
                 t = self.player.jump_progress
                 px = self.player.jump_start_pos.x + (self.player.jump_target_pos.x - self.player.jump_start_pos.x) * t
@@ -269,14 +288,16 @@ class PlayerGameState:
                 self.player.pos = Vector3(px, py, pz)
         
         elif not self.game_over:
-            from systems.input_handler import get_p1_pressed_directions, get_p2_pressed_directions, get_p1_pressed_direction, get_p2_pressed_direction
+            from systems.input_handler import get_p1_pressed_directions, get_p2_pressed_directions, get_p1_pressed_direction, get_p2_pressed_direction, get_p1_held_directions, get_p2_held_directions
             
             # Read inputs normally based on the swapped identity
             if self.is_player1:
                 p_directions = get_p1_pressed_directions()
+                p_held = get_p1_held_directions()
                 p_pressed = get_p1_pressed_direction()
             else:
                 p_directions = get_p2_pressed_directions()
+                p_held = get_p2_held_directions()
                 p_pressed = get_p2_pressed_direction()
             
             # Use pressed direction to detect activity, use directions to map all simultaneous 
@@ -290,6 +311,11 @@ class PlayerGameState:
                 else:
                     req_dirs = current_plat.directions
                     is_inverted = getattr(current_plat, 'is_inverted', False)
+                    is_multi = len(req_dirs) > 1
+                    
+                    # For multi-arrow tiles use held keys (is_key_down) so the player
+                    # doesn't need to hit both keys on the exact same frame
+                    active_dirs = p_held if is_multi else p_directions
                     
                     if is_inverted:
                         p_overlap = set(p_directions).intersection(set(req_dirs))
@@ -301,11 +327,11 @@ class PlayerGameState:
                             self._execute_jump()
                     else:
                         # Standard logic
-                        if p_directions == req_dirs:
+                        if active_dirs == req_dirs:
                             self._execute_jump()
                         else: 
-                            # Check if the newly pressed key is entirely invalid
-                            if p_pressed not in req_dirs or len(req_dirs) == 1 or len(p_directions) != len(req_dirs):
+                            # For multi-arrow tiles: no penalty while building up the combo
+                            if not is_multi and (p_pressed not in req_dirs or len(p_directions) != len(req_dirs)):
                                 self.player.is_jumping = True
                                 self.player.jump_start_pos = self.player.pos
                                 self.player.jump_progress = 0.0
@@ -352,6 +378,7 @@ class PlayerGameState:
         self.player.is_jumping = True
         self.player.jump_start_pos = self.player.pos
         self.player.jump_progress = 0.0
+        self.jump_was_advance = True  # mark as a real forward jump
         
         self.current_plat_index += 1
         next_plat = self.platforms[self.current_plat_index]
@@ -418,7 +445,10 @@ class PlayerGameState:
             
             # Color base constante para todas las plataformas
             base_plat_color = Color(80, 50, 150, 255) # Base violeta
-            if getattr(plat, 'modifier', None) == "screen_swap":
+            if getattr(plat, 'is_battle', False):
+                pulse_m = (math.sin(t_now * 10.0) + 1.0) / 2.0
+                base_plat_color = Color(255, int(200 + 55 * pulse_m), 0, 255)  # Oro pulsante
+            elif getattr(plat, 'modifier', None) == "screen_swap":
                 pulse_m = (math.sin(t_now * 8.0) + 1.0) / 2.0
                 base_plat_color = Color(0, 255, 255, int(150 + 105 * pulse_m))
             elif getattr(plat, 'modifier', None) == "darkness":
@@ -436,7 +466,10 @@ class PlayerGameState:
                 # Current platform: pulsing glow ring
                 pulse = (math.sin(t_now * 6.0) + 1.0) / 2.0
                 glow_size = Vector3(plat.size.x + 0.3 + pulse * 0.3, 0.1, plat.size.z + 0.3 + pulse * 0.3)
-                if getattr(plat, 'modifier', None) == "screen_swap":
+                if getattr(plat, 'is_battle', False):
+                    face_color = base_plat_color
+                    glow_color = Color(255, 220, 0, int(120 + 120 * pulse))
+                elif getattr(plat, 'modifier', None) == "screen_swap":
                     face_color = base_plat_color
                     glow_color = Color(0, 220, 255, int(80 + 80 * pulse))
                 elif getattr(plat, 'modifier', None) == "darkness":
@@ -453,7 +486,14 @@ class PlayerGameState:
                 bob = math.sin(t_now * 2.0 + i * 0.7) * 0.15
                 pos = Vector3(plat.pos.x, plat.pos.y + bob, plat.pos.z)
                 draw_cube_v(pos, plat.size, base_plat_color)
-                draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
+                if getattr(plat, 'is_battle', False):
+                    # Glowing gold wire border for battle tiles
+                    pulse_b = (math.sin(t_now * 10.0) + 1.0) / 2.0
+                    border_size = Vector3(plat.size.x + 0.15 + pulse_b * 0.2, plat.size.y + 0.15, plat.size.z + 0.15 + pulse_b * 0.2)
+                    draw_cube_wires_v(pos, border_size, Color(255, 220, 0, int(180 + 75 * pulse_b)))
+                    draw_cube_wires_v(pos, plat.size, Color(255, 255, 255, 200))
+                else:
+                    draw_cube_wires_v(pos, plat.size, Color(0, 0, 0, 120))
             
             if i >= self.current_plat_index and not plat.is_battle:
                 draw_arrow(plat)
