@@ -259,12 +259,19 @@ class PlayerGameState:
                 if not self.game_started:
                     self.game_started = True
                     
-                self.player.is_jumping = True
-                self.player.jump_start_pos = self.player.pos
-                self.player.jump_progress = 0.0
-                
                 if pressed_dir == current_plat.direction:
+                    self.player.is_jumping = True
+                    self.player.jump_start_pos = self.player.pos
+                    self.player.jump_progress = 0.0
+                    
                     self.current_plat_index += 1
+                    
+                    # Trigger Minigame check at index 10 (Wait, they have to land precisely on index 10 or jump FROM it?)
+                    # Let's say if they land ON 10
+                    # Actually, the trigger might be easier to manage at the scene level, but let's signal it:
+                    if self.current_plat_index == 10:
+                        self.triggered_modifier = "minigame"
+                        
                     next_plat = self.platforms[self.current_plat_index]
                     self.player.jump_target_pos = Vector3(next_plat.pos.x, 2.0, next_plat.pos.z)
                     
@@ -299,18 +306,12 @@ class PlayerGameState:
                         self.last_milestone = new_milestone
                         
                 else:
-                    wrong_offset = get_direction_vector(pressed_dir)
-                    self.player.jump_target_pos = Vector3(
-                        self.player.pos.x + wrong_offset.x, 
-                        -10.0, 
-                        self.player.pos.z + wrong_offset.z
-                    )
-                    self.game_over = True
+                    # Wrong key pressed (does not advance square, nor kills the player)
                     self.combo = 0
-                    self.trigger_screen_shake(0.5)
+                    self.trigger_screen_shake(0.3)
                     self.particles.emit_death_burst(
                         self.player.pos.x, self.player.pos.y, self.player.pos.z,
-                        Color(255, 100, 100, 255), count=30
+                        Color(255, 100, 100, 255), count=15
                     )
 
         # Camera follow
@@ -656,13 +657,26 @@ class GameplayScene:
         
         if p1_mod or p2_mod:
             triggered = p1_mod or p2_mod
-            self.active_modifier = triggered
-            self.active_modifier_timer = 6.0
-            if triggered == "screen_swap":
-                self.modifier_target = 1.0
-            self.p1_state.triggered_modifier = None
-            if not self.singleplayer:
+            if triggered == "minigame" and not self.singleplayer:
+                # Trigger minigame switch
+                from scenes.scene_minigame import MinigameScene
+                minigame = MinigameScene(
+                    self.game, self, 
+                    self.p1_state.player.score, 
+                    self.p2_state.player.score
+                )
+                self.game.change_scene(minigame)
+                self.p1_state.triggered_modifier = None
                 self.p2_state.triggered_modifier = None
+                return # Skip rest of update this frame
+            else:
+                self.active_modifier = triggered
+                self.active_modifier_timer = 6.0
+                if triggered == "screen_swap":
+                    self.modifier_target = 1.0
+                self.p1_state.triggered_modifier = None
+                if not self.singleplayer:
+                    self.p2_state.triggered_modifier = None
         
         # Sync darkness_timer to both states so both screens go dark
         darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
