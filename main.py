@@ -5,7 +5,7 @@ from game import Game
 from utils.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 def main():
-    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "React & Jump 3D!")
+    init_window(SCREEN_WIDTH, SCREEN_HEIGHT, "Cubes!")
     set_target_fps(60)
 
     game = Game()

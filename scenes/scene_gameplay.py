@@ -106,6 +106,26 @@ class PlayerGameState:
         self.last_milestone = 0
         self.session_best = 0
         self.battle_cooldown = 0  # platforms until next battle tile is allowed
+        
+        # Audio: initialize device if not already done and load combo sounds
+        # pyray init_audio_device is called once; safe to call again (it no-ops if already open)
+        if not is_audio_device_ready():
+            init_audio_device()
+        self.combo_sounds = [
+            load_sound("assets/sounds/first_effect.mp3"),   # x5
+            load_sound("assets/sounds/second_effect.mp3"),  # x10
+            load_sound("assets/sounds/third_effect.mp3"),   # x15
+            load_sound("assets/sounds/fourth_effect.mp3"),  # x20
+            load_sound("assets/sounds/fifth_effect.mp3"),   # x30
+        ]
+        # Milestones paired 1-to-1 with the sounds above
+        self.combo_milestones = [5, 10, 15, 20, 30]
+        self.last_combo_milestone = 0  # highest milestone already triggered this streak
+        
+        # Combo banner
+        self.combo_banner_text = ""
+        self.combo_banner_timer = 0.0
+        self.combo_banner_scale = 1.0
 
     def generate_platform(self, last_plat):
         # Use first direction for positional offset
@@ -201,6 +221,17 @@ class PlayerGameState:
             self.combo_timer += dt
             if self.combo_timer > 2.5:
                 self.combo = 0
+                self.last_combo_milestone = 0  # reset milestone so next streak plays sounds again
+        
+        # Combo banner decay
+        if self.combo_banner_timer > 0:
+            self.combo_banner_timer -= dt
+            if self.combo_banner_timer > 0.15:
+                # grow in
+                self.combo_banner_scale = 1.0 + 0.5 * (self.combo_banner_timer - 0.15)
+            else:
+                # shrink out
+                self.combo_banner_scale = max(0.0, self.combo_banner_timer / 0.15)
         
         # Detect landing
         self.just_landed = False
@@ -394,6 +425,38 @@ class PlayerGameState:
             next_plat.is_swap = False # clear it so they don't trigger it again if jumping in place
             
         self.player.score += 1
+        
+        # --- Combo increment & milestone check ---
+        self.combo += 1
+        self.combo_timer = 0.0
+        if self.combo > self.best_combo:
+            self.best_combo = self.combo
+        self.combo_display_scale = 1.8  # pop bounce
+        
+        # Check each milestone once per streak
+        for idx, threshold in enumerate(self.combo_milestones):
+            if self.combo >= threshold and self.last_combo_milestone < threshold:
+                self.last_combo_milestone = threshold
+                # Play the associated sound
+                play_sound(self.combo_sounds[idx])
+                # Show banner
+                if threshold == 30:
+                    self.combo_banner_text = f"x{self.combo} !"
+                elif threshold == 20:
+                    self.combo_banner_text = f"x{self.combo}  INSANE!"
+                elif threshold == 15:
+                    self.combo_banner_text = f"x{self.combo}  ON FIRE!"
+                elif threshold == 10:
+                    self.combo_banner_text = f"x{self.combo}  AMAZING!"
+                else:  # x5
+                    self.combo_banner_text = f"x{self.combo}  COMBO!"
+                self.combo_banner_timer = 1.0  # show for 1 second
+                break  # only trigger the *highest* new milestone per jump
+        else:
+            # Past x30 keep showing exclamation banners but no new sound
+            if self.combo > 30 and self.combo % 5 == 0:
+                self.combo_banner_text = f"x{self.combo} !"
+                self.combo_banner_timer = 0.7
         
         time_added = max(0.3, 1.0 - (self.player.score * 0.03))
         self.time_left = min(self.MAX_TIME, self.time_left + time_added)
@@ -675,6 +738,48 @@ class PlayerGameState:
                 
                 draw_text_shadow(combo_text, combo_x, combo_y, combo_fs, combo_color)
             
+            # --- Combo Milestone Banner ---
+            if self.combo_banner_timer > 0 and self.combo_banner_text:
+                bfs = int(48 * self.combo_banner_scale)
+                bfs = max(1, bfs)
+                bw = measure_text(self.combo_banner_text, bfs)
+                bx = self.render_width // 2 - bw // 2 + shake_x
+                by = self.render_height // 2 - bfs - 60 + shake_y if hasattr(self, 'render_height') else SCREEN_HEIGHT // 2 - bfs - 60 + shake_y
+                
+                # Determine colour by milestone
+                if "INSANE" in self.combo_banner_text:
+                    banner_col = Color(255, 0, 200, 255)   # hot magenta
+                elif "ON FIRE" in self.combo_banner_text:
+                    banner_col = Color(255, 100, 0, 255)   # orange fire
+                elif "AMAZING" in self.combo_banner_text:
+                    banner_col = Color(0, 220, 255, 255)   # cyan
+                elif "COMBO" in self.combo_banner_text:
+                    banner_col = Color(80, 255, 80, 255)   # lime
+                else:
+                    # x30+ exclamation — pulse through neon gold
+                    pulse_b = (math.sin(get_time() * 20.0) + 1.0) / 2.0
+                    banner_col = Color(255, int(180 + 75 * pulse_b), 0, 255)
+                
+                alpha_ratio = min(1.0, self.combo_banner_timer / 0.3)
+                panel_pad = 20
+                draw_rounded_panel(
+                    bx - panel_pad, by - 8,
+                    bw + panel_pad * 2, bfs + 20,
+                    Color(0, 0, 0, int(200 * alpha_ratio)),
+                    shadow_offset=8, roundness=0.4
+                )
+                draw_rounded_panel_outline(
+                    bx - panel_pad, by - 8,
+                    bw + panel_pad * 2, bfs + 20,
+                    Color(banner_col.r, banner_col.g, banner_col.b, int(220 * alpha_ratio)),
+                    segments=12, thickness=3
+                )
+                draw_text_shadow(
+                    self.combo_banner_text, bx, by, bfs,
+                    Color(banner_col.r, banner_col.g, banner_col.b, int(255 * alpha_ratio)),
+                    shadow_offset=4
+                )
+            
             # --- Timer Bar ---
             if self.game_started:
                 bar_w = 300
@@ -748,6 +853,7 @@ class GameplayScene:
         self.active_modifier_timer = 0.0
         self.modifier_transition = 0.0   # 0.0 = normal, 1.0 = fully swapped
         self.modifier_target = 0.0       # target to lerp towards
+        self.music_is_inverted = False   # tracks whether reversed music is active
         
         if singleplayer:
             self.p1_state = PlayerGameState(self, is_player1=True, render_width=SCREEN_WIDTH)
@@ -774,10 +880,14 @@ class GameplayScene:
         if self.show_swap_flash > 0:
             self.show_swap_flash -= dt * 2.0
             
-        if self.p1_state.just_landed_on_battle or self.p2_state.just_landed_on_battle:
+        p1_battle = self.p1_state.just_landed_on_battle
+        p2_battle = self.p2_state.just_landed_on_battle if self.p2_state else False
+        if p1_battle or p2_battle:
             self.p1_state.just_landed_on_battle = False
-            self.p2_state.just_landed_on_battle = False
+            if self.p2_state:
+                self.p2_state.just_landed_on_battle = False
             from scenes.scene_battle import BattleScene
+            self.game.switch_music("battle")
             self.game.change_scene(BattleScene(self.game, self))
             return
             
@@ -809,6 +919,7 @@ class GameplayScene:
                 self.p2_state.triggered_modifier = None
                 return # Skip rest of update this frame
             else:
+                triggered = p1_mod or p2_mod
                 self.active_modifier = triggered
                 self.active_modifier_timer = 6.0
                 if triggered == "screen_swap":
@@ -816,6 +927,22 @@ class GameplayScene:
                 self.p1_state.triggered_modifier = None
                 if self.p2_state:
                     self.p2_state.triggered_modifier = None
+        
+        # --- Inverted-tile music detection ---
+        # Only fire when the player has landed (not mid-jump) to avoid mid-air triggers
+        def _is_grounded_on_inverted(state):
+            if state is None or state.game_over or state.player.is_jumping:
+                return False
+            plat = state.platforms[state.current_plat_index]
+            return getattr(plat, 'is_inverted', False)
+        
+        any_inverted = _is_grounded_on_inverted(self.p1_state) or _is_grounded_on_inverted(self.p2_state)
+        if any_inverted and not self.music_is_inverted:
+            self.music_is_inverted = True
+            self.game.switch_music("inverted")
+        elif not any_inverted and self.music_is_inverted:
+            self.music_is_inverted = False
+            self.game.switch_music("normal")
         
         # Sync darkness_timer to both states
         darkness_t = self.active_modifier_timer if self.active_modifier == "darkness" else 0.0
@@ -845,8 +972,18 @@ class GameplayScene:
                 winner = "Player 2"
             elif p2_dead and not p1_dead:
                 winner = "Player 1"
+            
+            # Win jingle + music reset
+            self.game.play_win_effect()
+            
+            p2_score = self.p2_state.player.score if self.p2_state else 0
+            p2_combo = self.p2_state.best_combo if self.p2_state else 0
                 
-            self.game.change_scene(GameOverScene(self.game, winner, self.p1_state.player.score, self.p2_state.player.score))
+            self.game.change_scene(GameOverScene(
+                self.game, winner,
+                self.p1_state.player.score, p2_score,
+                p1_combo=self.p1_state.best_combo, p2_combo=p2_combo
+            ))
 
     def draw(self):
         self.p1_state.draw_to_texture()
